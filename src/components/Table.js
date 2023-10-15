@@ -1,17 +1,18 @@
 import { useState } from "react";
 import Cell, { CellType } from "./Cell";
+import ActionDialog from "./ActionDialog";
 
 const Table = ({ id }) => {
 	const [grid, setGrid] = useState(Array.from({ length: 20 }, () =>
 		Array.from({ length: 10 }, () => CellType.DEFAULT)
 	));
 
-	const changeCellType = (rowIndex, columnIndex, newValue) => {
+	const changeCellType = (rowIndex, columnIndex, newCellType) => {
 		// Create a deep copy of the grid
 		const updatedGrid = [...grid.map(row => [...row])];
 
 		// Update the value of the specific cell
-		updatedGrid[rowIndex][columnIndex] = newValue;
+		updatedGrid[rowIndex][columnIndex] = newCellType;
 
 		// Set the state with the updated copy
 		setGrid(updatedGrid);
@@ -22,9 +23,17 @@ const Table = ({ id }) => {
 	};
 
 	const [activeCellID, setActiveCellID] = useState([0, 0])
+	const [modalOpen, setModalOpen] = useState(false)
 
 	return (
 		<div className="container mx-auto">
+			<ActionDialog
+				id={`dialog-${id}`}
+				isOpen={modalOpen}
+				setNotOpen={() => setModalOpen(false)}
+				cellType={getCellType(activeCellID[0], activeCellID[1])}
+				setCellType={(newCellType) => changeCellType(activeCellID[0], activeCellID[1], newCellType)}
+			/>
 			<table className="table-auto border">
 				<thead>
 					<tr>
@@ -40,7 +49,10 @@ const Table = ({ id }) => {
 								<td key={columnIndex} className="border border-4 border-black w-10 h-10">
 									<Cell
 										cellType={getCellType(rowIndex, columnIndex)}
-										onClick={() => setActiveCellID([rowIndex, columnIndex])} />
+										onClick={() => {
+											setActiveCellID([rowIndex, columnIndex]);
+											setModalOpen(true)
+										}} />
 								</td>
 							))}
 						</tr>

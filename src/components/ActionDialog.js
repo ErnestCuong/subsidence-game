@@ -3,17 +3,21 @@ import { CellType } from "./Cell";
 import Home from "./Home";
 import Road from "./Road";
 
-const ActionDialog = (isOpen, cellType, setCellType) => {
+const ActionDialog = ({ id, isOpen, setNotOpen, cellType, setCellType }) => {
   useEffect(() => {
     if (isOpen) {
-      document.getElementById("dialog").showModal()
+      document.getElementById(id).showModal()
       return
     }
-    document.getElementById("dialog").close()
   }, [isOpen])
 
+  const closeModal = () => {
+    document.getElementById(id).close();
+    setNotOpen();
+  }
+
   return (
-    <dialog id="dialog" className="modal">
+    <dialog id={id} className="modal">
       <div className="modal-box">
         <h3 className="font-bold text-2xl">Choose an action</h3>
         <div className="grid grid-cols-2 gap-4 my-10">
