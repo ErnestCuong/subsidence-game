@@ -1,13 +1,13 @@
 import Cell from "./Cell";
 
-const Table = () => {
+const Table = ({id}) => {
 	return (
 		<div className="container mx-auto">
 			<table className="table-auto border">
 				<thead>
 					<tr>
 						{Array.from({ length: 10 }, (_, index) => (
-							<th key={index} className="border p-2">{index + 1}</th>
+							<th key={index} className="border border-4 border-black w-10 h-10 bg-gray-500">{index + 1}</th>
 						))}
 					</tr>
 				</thead>
@@ -15,8 +15,8 @@ const Table = () => {
 					{Array.from({ length: 20 }, (_, rowIndex) => (
 						<tr key={rowIndex}>
 							{Array.from({ length: 10 }, (_, columnIndex) => (
-								<td key={columnIndex} className="border p-2">
-									<Cell/>
+								<td key={columnIndex} className="border border-4 border-black w-10 h-10">
+									<Cell id={`${id}-${rowIndex}-${columnIndex}`}/>
 									{/* You can insert your components here */}
 								</td>
 							))}
