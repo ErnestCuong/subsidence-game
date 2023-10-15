@@ -5,7 +5,7 @@ import Factory from "./Factory"
 import Tree from "./Tree"
 import Trash from "./Trash"
 import Default from "./Default"
-import { useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 
 export const CellType = {
   DEFAULT: 0,
@@ -17,32 +17,16 @@ export const CellType = {
   TRASH: 6
 }
 
-const Cell = ({ id }) => {
-  const [cellType, setCellType] = useState(CellType.DEFAULT)
-  const openModal = () => document.getElementById(id).showModal()
-
+const Cell = ({ onClick, cellType }) => {
   return (
     <>
-      {cellType === CellType.DEFAULT && <Default onClick={openModal} />}
-      {cellType === CellType.ROAD && <Road />}
-      {cellType === CellType.WATER && <Water />}
-      {cellType === CellType.HOME && <Home />}
-      {cellType === CellType.FACTORY && <Factory />}
-      {cellType === CellType.TREE && <Tree />}
-      {cellType === CellType.TRASH && <Trash />}
-
-      <dialog id={id} className="modal">
-        <div className="modal-box">
-          <h3 className="font-bold text-lg">Hello!</h3>
-          <p className="py-4">Press ESC key or click the button below to close</p>
-          <div className="modal-action">
-            <form method="dialog">
-              {/* if there is a button in form, it will close the modal */}
-              <button className="btn">Close</button>
-            </form>
-          </div>
-        </div>
-      </dialog>
+      {cellType === CellType.DEFAULT && <Default onClick={onClick} />}
+      {cellType === CellType.ROAD && <Road onClick={onClick} />}
+      {cellType === CellType.WATER && <Water onClick={onClick} />}
+      {cellType === CellType.HOME && <Home onClick={onClick} />}
+      {cellType === CellType.FACTORY && <Factory onClick={onClick} />}
+      {cellType === CellType.TREE && <Tree onClick={onClick} />}
+      {cellType === CellType.TRASH && <Trash onClick={onClick} />}
     </>
   )
 }
