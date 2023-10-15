@@ -5,7 +5,6 @@ import Factory from "./Factory"
 import Tree from "./Tree"
 import Trash from "./Trash"
 import Default from "./Default"
-import { useCallback, useMemo, useState } from "react"
 
 export const CellType = {
   DEFAULT: 0,
