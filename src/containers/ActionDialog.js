@@ -9,7 +9,7 @@ const ActionDialog = ({ id, isOpen, setNotOpen, cellType, setCellType }) => {
       document.getElementById(id).showModal()
       return
     }
-  }, [isOpen])
+  }, [isOpen, id])
 
   const closeModal = () => {
     document.getElementById(id).close();
@@ -48,10 +48,7 @@ const ActionDialog = ({ id, isOpen, setNotOpen, cellType, setCellType }) => {
 
         </div>
         <div className="modal-action">
-          <form method="dialog">
-            {/* if there is a button in form, it will close the modal */}
-            <button className="btn">Close</button>
-          </form>
+            <button className="btn" onClick={closeModal}>Close</button>
         </div>
       </div>
     </dialog>
