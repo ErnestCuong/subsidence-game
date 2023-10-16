@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { CellType } from "./Cell";
-import Home from "./Home";
-import Road from "./Road";
+import Home from "../components/Home";
+import Road from "../components/Road";
 
 const ActionDialog = ({ id, isOpen, setNotOpen, cellType, setCellType }) => {
   useEffect(() => {
