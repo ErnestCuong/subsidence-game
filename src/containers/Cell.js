@@ -1,10 +1,10 @@
-import Road from "./Road"
-import Water from "./Water"
-import Home from "./Home"
-import Factory from "./Factory"
-import Tree from "./Tree"
-import Trash from "./Trash"
-import Default from "./Default"
+import Road from "../components/Road"
+import Water from "../components/Water"
+import Home from "../components/Home"
+import Factory from "../components/Factory"
+import Tree from "../components/Tree"
+import Trash from "../components/Trash"
+import Default from "../components/Default"
 
 export const CellType = {
   DEFAULT: 0,
