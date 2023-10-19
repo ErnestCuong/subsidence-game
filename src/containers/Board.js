@@ -13,16 +13,32 @@ const Board = () => {
 	const [sediment1, setSediment1] = useState(-1)
 	const [sediment2, setSediment2] = useState(-1)
 
+	const [subsidence, setSubsidence] = useState(JSON.parse(localStorage.getItem("subsidence"))?.subsidence ?? 0)
+	const [subsidence1, setSubsidence1] = useState(-1)
+	const [subsidence2, setSubsidence2] = useState(-1)
+
 	useEffect(() => {
 		localStorage.setItem("sediment", JSON.stringify({ sediment: sediment }))
 	}, [sediment])
 
+	useEffect(() => {
+		localStorage.setItem("subsidence", JSON.stringify({ subsidence: subsidence }))
+	}, [subsidence])
+
 	const addSediment = (value) => {
-		if (sediment + value > RIVER_DEPTH * 10) {
-			setSediment(RIVER_DEPTH * 10)
+		if (sediment + value > RIVER_DEPTH * 30) {
+			setSediment(RIVER_DEPTH * 30)
 			return
 		}
 		setSediment(sediment + value)
+	}
+
+	const increaseSubsidence = (value) => {
+		if (subsidence + value > RIVER_DEPTH * 15) {
+			setSubsidence(RIVER_DEPTH * 15)
+			return
+		}
+		setSubsidence(subsidence + value)
 	}
 
 	const removeSediment = (value) => {
@@ -37,12 +53,21 @@ const Board = () => {
 		}
 	}, [sediment1, sediment2])
 
+	useEffect(() => {
+		if (subsidence1 > -1 && subsidence2 > -1) {
+			increaseSubsidence(subsidence1 + subsidence2)
+			setSubsidence1(-1)
+			setSubsidence2(-1)
+		}
+	}, [subsidence1, subsidence2])
+
 	const restart = () => {
 		localStorage.removeItem('resident')
 		localStorage.removeItem('corporate')
 		setResetFlag(resetFlag + 1)
 		setNextFlag(0)
 		setSediment(0)
+		setSubsidence(0)
 		toast.success('New Game!', {
 			position: "bottom-center"
 		})
@@ -50,8 +75,9 @@ const Board = () => {
 
 	const getFloodLevel = () => {
 		const rainLevel = Math.floor(Math.random() * MAX_RAIN)
-		const sedimentLevel = Math.floor(sediment / 10)
-		const floodLevel = sedimentLevel + rainLevel - RIVER_DEPTH
+		const sedimentLevel = Math.floor(sediment / 50)
+		const subsidenceLevel = Math.floor(subsidence / 50)
+		const floodLevel = sedimentLevel + rainLevel + subsidenceLevel - RIVER_DEPTH
 		return floodLevel > 10 ? 10 : floodLevel < 0 ? 0 : floodLevel
 	}
 
@@ -74,13 +100,14 @@ const Board = () => {
 	return (
 		<div className="flex flex-col items-start ml-10">
 			<div className="flex gap-20 items-center">
-				<p className="font-bold">{`Sediment Level: ${Math.floor(sediment / 10)}`}</p>
+				<p className="font-bold">{`Sediment Level: ${sediment}`}</p>
+				<p className="font-bold">{`Subsidence Level: ${subsidence}`}</p>
 				<button className="btn bg-red-300" onClick={restart}>Reset Game</button>
 				<button className="btn bg-green-300" onClick={next}>Next Round</button>
 			</div>
 			<div className="flex flex-row flex-shrink-0 mt-10">
-				<Table id="resident" isRotated={true} title="Residential Area" role={Role.RESIDENTS} resetFlag={resetFlag} nextFlag={nextFlag} flood={flood} addSediment={setSediment1} />
-				<Table id="corporate" isRotated={false} title="Industrial Area" role={Role.COMPANIES} resetFlag={resetFlag} nextFlag={nextFlag} flood={flood} addSediment={setSediment2} />
+				<Table id="resident" isRotated={true} title="Residential Area" role={Role.RESIDENTS} resetFlag={resetFlag} nextFlag={nextFlag} flood={flood} addSediment={setSediment1} increaseSubsidence={setSubsidence1}/>
+				<Table id="corporate" isRotated={false} title="Industrial Area" role={Role.COMPANIES} resetFlag={resetFlag} nextFlag={nextFlag} flood={flood} addSediment={setSediment2} increaseSubsidence={setSubsidence2}/>
 			</div>
 			<Toaster />
 		</div>
