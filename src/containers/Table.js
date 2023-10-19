@@ -5,7 +5,8 @@ import toast from 'react-hot-toast'
 
 const ROW_LENGTH = 10
 const COLUMN_LENGTH = 10
-const ACTIONS_PER_ROUND = 4
+const MIN_ACTIONS_PER_ROUND = 10
+const MAX_ACTIONS_PER_ROUND = 20
 
 export const Role = {
   RESIDENTS: 0,
@@ -20,7 +21,7 @@ const getNewGrid = () => {
   )
 }
 
-const getEmptyGrid = (grid) => {
+const getEmptyGrid = () => {
   return Array.from({ length: ROW_LENGTH }, () =>
     Array.from({ length: COLUMN_LENGTH + 1 }, (_, index) =>
       index === 0 ? CellType.WATER : CellType.DEFAULT
@@ -113,7 +114,7 @@ const calculateProfit = (grid) => {
   return profit
 }
 
-const Table = ({ id, isRotated, title, role, resetFlag, nextFlag, flood, addSediment }) => {
+const Table = ({ id, isRotated, title, role, resetFlag, nextFlag, flood, addSediment, increaseSubsidence }) => {
   const [grid, setGrid] = useState(
     JSON.parse(localStorage.getItem(id))?.grid ?? getNewGrid()
   );
@@ -138,6 +139,36 @@ const Table = ({ id, isRotated, title, role, resetFlag, nextFlag, flood, addSedi
   const [activeCellID, setActiveCellID] = useState([0, 0]);
   const [modalOpen, setModalOpen] = useState(false);
 
+  const getNewSubsidence = () => actions.reduce((prev, curr) => {
+    const row = curr[0]
+    const col = curr[1]
+    const oldCellType = curr[2]
+    const newCellType = grid[row][col]
+    if (oldCellType !== CellType.DEFAULT) {
+      return prev
+    }
+    if (newCellType !== CellType.HOME && newCellType !== CellType.FACTORY && newCellType !== CellType.TRASH) {
+      return prev
+    }
+    return prev + 1
+  }, 0)
+
+  const getNewSediment = () => {
+    let newSediment = 0
+    for (let rowIndex = 0; rowIndex < ROW_LENGTH; rowIndex++) {
+      for (let columnIndex = 1; columnIndex < COLUMN_LENGTH + 1; columnIndex++) {
+        if (operableGrid[rowIndex][columnIndex] === CellType.HOME || operableGrid[rowIndex][columnIndex] === CellType.FACTORY) {
+          newSediment = newSediment + 1
+        }
+
+        if (operableGrid[rowIndex][columnIndex] === CellType.TRASH) {
+          newSediment = newSediment - 4
+        }
+      }
+    }
+    return newSediment > 0 ? newSediment : 0
+  }
+
   useEffect(() => {
     localStorage.setItem(id, JSON.stringify({ grid: grid, budget: budget }))
   }, [grid, budget, id])
@@ -156,20 +187,9 @@ const Table = ({ id, isRotated, title, role, resetFlag, nextFlag, flood, addSedi
       return
     }
 
-    let newSediment = 0
-    for (let rowIndex = 0; rowIndex < ROW_LENGTH; rowIndex++) {
-      for (let columnIndex = 1; columnIndex < COLUMN_LENGTH + 1; columnIndex++) {
-        if (grid[rowIndex][columnIndex] === CellType.HOME || grid[rowIndex][columnIndex] === CellType.FACTORY) {
-          newSediment = newSediment + 1
-        }
-
-        if (grid[rowIndex][columnIndex] === CellType.TRASH) {
-          newSediment = newSediment - 4
-        }
-      }
-    }
-    addSediment(newSediment > 0 ? newSediment : 0)
+    addSediment(getNewSediment())
     setBudget(budget + calculateProfit(grid))
+    increaseSubsidence(getNewSubsidence())
     setActions([])
   }, [nextFlag])
 
@@ -211,6 +231,14 @@ const Table = ({ id, isRotated, title, role, resetFlag, nextFlag, flood, addSedi
 
   useEffect(() => setOperableGrid(getOperableGrid(grid)), [grid])
 
+  const getActionsPerRound = () => {
+    const extraActions = Math.floor(calculateProfit(grid)/10)
+    if (extraActions + MIN_ACTIONS_PER_ROUND > MAX_ACTIONS_PER_ROUND) {
+      return MAX_ACTIONS_PER_ROUND
+    }
+    return MIN_ACTIONS_PER_ROUND + extraActions
+  }
+
   return (
     <div className={`inline-container flex-shrink-0`}>
       {/* <h className="h-10 font-bold">{title}</h> */}
@@ -220,7 +248,14 @@ const Table = ({ id, isRotated, title, role, resetFlag, nextFlag, flood, addSedi
         setNotOpen={() => setModalOpen(false)}
         cellType={getCellType(activeCellID[0], activeCellID[1])}
         setCellType={(newCellType) => {
-          if (actions.length >= ACTIONS_PER_ROUND) {
+          const newActions = actions.filter((action) => action[0] !== activeCellID[0] || action[1] !== activeCellID[1] || action[2] !== newCellType)
+          if (actions.length > newActions.length) {
+            setActions(newActions)
+            changeCellType(activeCellID[0], activeCellID[1], newCellType)
+            return
+          }
+
+          if (actions.length >= getActionsPerRound()) {
             toast.error("No more action this round", {
               position: "bottom-center"
             })
@@ -274,7 +309,14 @@ const Table = ({ id, isRotated, title, role, resetFlag, nextFlag, flood, addSedi
             </tr>
           ))}
           <tr className="border border-transparent"><th colSpan={COLUMN_LENGTH + 1}>{`Budget: ${budget}$`}</th></tr>
-          <tr className="border border-transparent"><th colSpan={COLUMN_LENGTH + 1}>{`Actions Left: ${ACTIONS_PER_ROUND - actions.length}`}</th></tr>
+          <tr className="border border-transparent">
+            <th colSpan={COLUMN_LENGTH + 1}>
+              {`Actions Left: ${getActionsPerRound() - actions.length}`}
+            </th>
+          </tr>
+          <tr className="border border-transparent"><th colSpan={COLUMN_LENGTH + 1}>{`Profit: +${calculateProfit(grid)}$`}</th></tr>
+          <tr className="border border-transparent"><th colSpan={COLUMN_LENGTH + 1}>{`Sediment: +${getNewSediment()}`}</th></tr>
+          <tr className="border border-transparent"><th colSpan={COLUMN_LENGTH + 1}>{`Subsidence: +${getNewSubsidence()}`}</th></tr>
           <tr className="border border-transparent">
             <th colSpan={COLUMN_LENGTH + 1}>
               <button
