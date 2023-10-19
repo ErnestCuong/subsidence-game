@@ -16,16 +16,16 @@ export const CellType = {
   TRASH: 6
 }
 
-const Cell = ({ onClick, cellType }) => {
+const Cell = ({ onClick, cellType, disabled }) => {
   return (
     <>
-      {cellType === CellType.DEFAULT && <Default onClick={onClick} />}
-      {cellType === CellType.ROAD && <Road onClick={onClick} />}
-      {cellType === CellType.WATER && <Water onClick={onClick} />}
-      {cellType === CellType.HOME && <Home onClick={onClick} />}
-      {cellType === CellType.FACTORY && <Factory onClick={onClick} />}
-      {cellType === CellType.TREE && <Tree onClick={onClick} />}
-      {cellType === CellType.TRASH && <Trash onClick={onClick} />}
+      {cellType === CellType.DEFAULT && <Default onClick={onClick} disabled={disabled} />}
+      {cellType === CellType.ROAD && <Road onClick={onClick} disabled={disabled} />}
+      {cellType === CellType.WATER && <Water onClick={onClick} disabled={disabled} />}
+      {cellType === CellType.HOME && <Home onClick={onClick} disabled={disabled} />}
+      {cellType === CellType.FACTORY && <Factory onClick={onClick} disabled={disabled} />}
+      {cellType === CellType.TREE && <Tree onClick={onClick} disabled={disabled} />}
+      {cellType === CellType.TRASH && <Trash onClick={onClick} disabled={disabled} />}
     </>
   )
 }
