@@ -59,7 +59,7 @@ const ActionDialog = ({ id, isOpen, setNotOpen, cellType, setCellType, role }) =
             <label className="font-bold">Build a Factory</label>
           </div>}
 
-          {canBuildWater && <div className="flex flex-row gap-2 items-center">
+          {/* {canBuildWater && <div className="flex flex-row gap-2 items-center">
             <div className="w-10 h-10">
               <Water
                 onClick={() => {
@@ -69,7 +69,7 @@ const ActionDialog = ({ id, isOpen, setNotOpen, cellType, setCellType, role }) =
               />
             </div>
             <label className="font-bold">Build a Water Channel</label>
-          </div>}
+          </div>} */}
 
           {canBuildRoad && <div className="flex flex-row gap-2 items-center">
             <div className="w-10 h-10">

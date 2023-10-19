@@ -12,9 +12,15 @@ export const Role = {
 
 const getNewGrid = () => {
   return Array.from({ length: ROW_LENGTH }, () =>
-    Array.from({ length: COLUMN_LENGTH }, (_, index) =>
+    Array.from({ length: COLUMN_LENGTH + 1 }, (_, index) =>
       index === 0 ? CellType.WATER : index > 1 && index < 4 ? CellType.TREE : CellType.DEFAULT
     )
+  )
+}
+
+const getEmptyGrid = () => {
+  return Array.from({ length: ROW_LENGTH }, () =>
+    Array.from({ length: COLUMN_LENGTH + 1 }, () => CellType.DEFAULT)
   )
 }
 
@@ -27,6 +33,60 @@ const Table = ({ id, isRotated, title, role, resetFlag, nextFlag, flood, addSedi
     JSON.parse(localStorage.getItem(id))?.grid ?? getNewGrid()
   );
   const [budget, setBudget] = useState(JSON.parse(localStorage.getItem(id))?.budget ?? 0)
+
+  const getOperableGrid = () => {
+    const updatedGrid = getEmptyGrid()
+    for (let rowIndex = 0; rowIndex < ROW_LENGTH; rowIndex++) {
+      for (let columnIndex = 1; columnIndex < COLUMN_LENGTH + 1; columnIndex++) {
+        if (grid[rowIndex][columnIndex] === CellType.TREE) {
+          updatedGrid[rowIndex][columnIndex] = CellType.TREE
+        }
+      }
+    }
+
+    for (let rowIndex = 0; rowIndex < ROW_LENGTH; rowIndex++) {
+      if (grid[rowIndex][1] === CellType.ROAD) {
+        updatedGrid[rowIndex][1] = CellType.ROAD
+      }
+    }
+
+    for (let columnIndex = 2; columnIndex < COLUMN_LENGTH + 1; columnIndex++) {
+      for (let rowIndex = 0; rowIndex < ROW_LENGTH; rowIndex++) {
+        if (updatedGrid[rowIndex][columnIndex - 1] === CellType.ROAD && grid[rowIndex][columnIndex] === CellType.ROAD) {
+          updatedGrid[rowIndex][columnIndex] = CellType.ROAD
+        }
+        if (updatedGrid[rowIndex][columnIndex] === CellType.ROAD && rowIndex > 0 && grid[rowIndex - 1][columnIndex] === CellType.ROAD) {
+          updatedGrid[rowIndex - 1][columnIndex] = CellType.ROAD
+        }
+        if (updatedGrid[rowIndex][columnIndex] === CellType.ROAD && rowIndex < ROW_LENGTH - 1 && grid[rowIndex + 1][columnIndex] === CellType.ROAD) {
+          updatedGrid[rowIndex + 1][columnIndex] = CellType.ROAD
+        }
+      }
+    }
+
+    for (let rowIndex = 0; rowIndex < ROW_LENGTH; rowIndex++) {
+      for (let columnIndex = 1; columnIndex < COLUMN_LENGTH + 1; columnIndex++) {
+        if (
+          grid[rowIndex][columnIndex] === CellType.DEFAULT
+          || grid[rowIndex][columnIndex] === CellType.ROAD
+          || grid[rowIndex][columnIndex] === CellType.TREE
+        ) {
+          continue
+        }
+
+        const topIsRoad = rowIndex > 0 && updatedGrid[rowIndex-1][columnIndex] === CellType.ROAD
+        const bottomIsRoad = rowIndex < ROW_LENGTH-1 && updatedGrid[rowIndex+1][columnIndex] === CellType.ROAD
+        const riverSideIsRoad = columnIndex > 1 && updatedGrid[rowIndex][columnIndex-1] === CellType.ROAD
+        const landSideIsRoad = columnIndex < COLUMN_LENGTH && updatedGrid[rowIndex][columnIndex+1] === CellType.ROAD
+
+        if (topIsRoad || bottomIsRoad || riverSideIsRoad || landSideIsRoad) {
+          updatedGrid[rowIndex][columnIndex] = grid[rowIndex][columnIndex]
+        }
+      }
+    }
+
+    return updatedGrid
+  }
 
   const changeCellType = (rowIndex, columnIndex, newCellType) => {
     // Create a deep copy of the grid
@@ -65,7 +125,7 @@ const Table = ({ id, isRotated, title, role, resetFlag, nextFlag, flood, addSedi
 
     let newSediment = 0
     for (let rowIndex = 0; rowIndex < ROW_LENGTH; rowIndex++) {
-      for (let columnIndex = 1; columnIndex < COLUMN_LENGTH+1; columnIndex++) {
+      for (let columnIndex = 1; columnIndex < COLUMN_LENGTH + 1; columnIndex++) {
         if (grid[rowIndex][columnIndex] === CellType.HOME || grid[rowIndex][columnIndex] === CellType.FACTORY) {
           newSediment = newSediment + 1
         }
