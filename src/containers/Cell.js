@@ -16,9 +16,9 @@ export const CellType = {
   TRASH: 6
 }
 
-const Cell = ({ onClick, cellType, disabled }) => {
+const Cell = ({ onClick, cellType, disabled, className }) => {
   return (
-    <>
+    <div className={`w-full h-full ${className ?? ''}`}>
       {cellType === CellType.DEFAULT && <Default onClick={onClick} disabled={disabled} />}
       {cellType === CellType.ROAD && <Road onClick={onClick} disabled={disabled} />}
       {cellType === CellType.WATER && <Water onClick={onClick} disabled={disabled} />}
@@ -26,7 +26,7 @@ const Cell = ({ onClick, cellType, disabled }) => {
       {cellType === CellType.FACTORY && <Factory onClick={onClick} disabled={disabled} />}
       {cellType === CellType.TREE && <Tree onClick={onClick} disabled={disabled} />}
       {cellType === CellType.TRASH && <Trash onClick={onClick} disabled={disabled} />}
-    </>
+    </div>
   )
 }
 

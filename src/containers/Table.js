@@ -257,6 +257,11 @@ const Table = ({ id, isRotated, title, role, resetFlag, nextFlag, flood, addSedi
                   className="border border-4 border-black w-10 h-10"
                 >
                   <Cell
+                    className={
+                      grid[rowIndex][isRotated ? COLUMN_LENGTH - columnIndex : columnIndex]
+                        === operableGrid[rowIndex][isRotated ? COLUMN_LENGTH - columnIndex : columnIndex]
+                        ? ''
+                        : 'opacity-40'}
                     cellType={getCellType(rowIndex, isRotated ? COLUMN_LENGTH - columnIndex : columnIndex)}
                     onClick={() => {
                       setActiveCellID([rowIndex, isRotated ? COLUMN_LENGTH - columnIndex : columnIndex]);
@@ -289,7 +294,7 @@ const Table = ({ id, isRotated, title, role, resetFlag, nextFlag, flood, addSedi
         </tbody>
       </table>
 
-      <table className="table-auto border opacity-50">
+      {/* <table className="table-auto border opacity-50">
         <thead>
           <tr><th colSpan={COLUMN_LENGTH + 1} className="font-bold bg-yellow-300 border-4 border-black">OPERATION MAP</th></tr>
         </thead>
@@ -325,7 +330,7 @@ const Table = ({ id, isRotated, title, role, resetFlag, nextFlag, flood, addSedi
             </tr>
           ))}
         </tbody>
-      </table>
+      </table> */}
     </div>
   );
 };
