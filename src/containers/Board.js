@@ -14,8 +14,8 @@ const Board = () => {
 	const [sediment2, setSediment2] = useState(-1)
 
 	useEffect(() => {
-    localStorage.setItem("sediment", JSON.stringify({ sediment: sediment }))
-  }, [sediment])
+		localStorage.setItem("sediment", JSON.stringify({ sediment: sediment }))
+	}, [sediment])
 
 	const addSediment = (value) => {
 		if (sediment + value > RIVER_DEPTH * 10) {
@@ -31,11 +31,11 @@ const Board = () => {
 
 	useEffect(() => {
 		if (sediment1 > -1 && sediment2 > -1) {
-			addSediment(sediment1+sediment2)
+			addSediment(sediment1 + sediment2)
 			setSediment1(-1)
 			setSediment2(-1)
 		}
-	},[sediment1, sediment2])
+	}, [sediment1, sediment2])
 
 	const restart = () => {
 		localStorage.removeItem('resident')
@@ -72,15 +72,15 @@ const Board = () => {
 	}
 
 	return (
-		<div className="flex flex-col items-start">
-			<div className="flex flex-row flex-shrink-0">
-				<Table id="resident" isRotated={true} title="Residential Area" role={Role.RESIDENTS} resetFlag={resetFlag} nextFlag={nextFlag} flood={flood} addSediment={setSediment1} />
-				<Table id="corporate" isRotated={false} title="Industrial Area" role={Role.COMPANIES} resetFlag={resetFlag} nextFlag={nextFlag} flood={flood} addSediment={setSediment2} />
-			</div>
-			<p className="mt-20">{`Sediment Level: ${Math.floor(sediment/10)}`}</p>
-			<div className="flex justify-between mt-20 gap-20">
+		<div className="flex flex-col items-start ml-10">
+			<div className="flex gap-20 items-center">
+				<p className="font-bold">{`Sediment Level: ${Math.floor(sediment / 10)}`}</p>
 				<button className="btn bg-red-300" onClick={restart}>Reset Game</button>
 				<button className="btn bg-green-300" onClick={next}>Next Round</button>
+			</div>
+			<div className="flex flex-row flex-shrink-0 mt-10">
+				<Table id="resident" isRotated={true} title="Residential Area" role={Role.RESIDENTS} resetFlag={resetFlag} nextFlag={nextFlag} flood={flood} addSediment={setSediment1} />
+				<Table id="corporate" isRotated={false} title="Industrial Area" role={Role.COMPANIES} resetFlag={resetFlag} nextFlag={nextFlag} flood={flood} addSediment={setSediment2} />
 			</div>
 			<Toaster />
 		</div>
