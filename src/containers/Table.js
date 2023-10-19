@@ -22,7 +22,7 @@ const calculateProfit = (grid) => {
   return 1
 }
 
-const Table = ({ id, isRotated, title, role, resetFlag, nextFlag, flood }) => {
+const Table = ({ id, isRotated, title, role, resetFlag, nextFlag, flood, addSediment }) => {
   const [grid, setGrid] = useState(
     JSON.parse(localStorage.getItem(id))?.grid ?? getNewGrid()
   );
@@ -47,53 +47,70 @@ const Table = ({ id, isRotated, title, role, resetFlag, nextFlag, flood }) => {
   const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
-    console.log('HELLO')
     localStorage.setItem(id, JSON.stringify({ grid: grid, budget: budget }))
   }, [grid, budget, id])
 
   useEffect(() => {
-    if (resetFlag > 0) {
-      setGrid(getNewGrid())
-      setBudget(0)
+    if (resetFlag === 0) {
+      return
     }
+    setGrid(getNewGrid())
+    setBudget(0)
   }, [resetFlag])
 
   useEffect(() => {
-    if (nextFlag > 0) {
-      setBudget(budget + calculateProfit(grid))
+    if (nextFlag === 0) {
+      return
     }
+
+    let newSediment = 0
+    for (let rowIndex = 0; rowIndex < ROW_LENGTH; rowIndex++) {
+      for (let columnIndex = 1; columnIndex < COLUMN_LENGTH+1; columnIndex++) {
+        if (grid[rowIndex][columnIndex] === CellType.HOME || grid[rowIndex][columnIndex] === CellType.FACTORY) {
+          newSediment = newSediment + 1
+        }
+
+        if (grid[rowIndex][columnIndex] === CellType.TRASH) {
+          newSediment = newSediment - 4
+        }
+      }
+    }
+    addSediment(newSediment > 0 ? newSediment : 0)
+    setBudget(budget + calculateProfit(grid))
   }, [nextFlag])
 
   useEffect(() => {
     if (nextFlag !== flood.round) {
       return
     }
+    const updatedGrid = [...grid.map((row) => [...row])];
+
     for (let rowIndex = 0; rowIndex < ROW_LENGTH; rowIndex++) {
       for (let columnIndex = 1; columnIndex < flood.level + 1; columnIndex++) {
         if (
-          grid[rowIndex, columnIndex] === CellType.DEFAULT
-          || grid[rowIndex, columnIndex] === CellType.ROAD
-          || grid[rowIndex, columnIndex] === CellType.TREE
-          || grid[rowIndex, columnIndex] === CellType.WATER
+          grid[rowIndex][columnIndex] === CellType.DEFAULT
+          || grid[rowIndex][columnIndex] === CellType.ROAD
+          || grid[rowIndex][columnIndex] === CellType.TREE
+          || grid[rowIndex][columnIndex] === CellType.WATER
         ) {
           continue
         }
 
-        if (columnIndex > 1 && grid[rowIndex, columnIndex - 1] === CellType.TREE) {
+        if (columnIndex > 1 && grid[rowIndex][columnIndex - 1] === CellType.TREE) {
           continue
         }
 
-        if (rowIndex > 0 && grid[rowIndex-1, columnIndex] === CellType.TREE) {
+        if (rowIndex > 0 && grid[rowIndex - 1][columnIndex] === CellType.TREE) {
           continue
         }
 
-        if (rowIndex < ROW_LENGTH-1 && grid[rowIndex+1, columnIndex] === CellType.TREE) {
+        if (rowIndex < ROW_LENGTH - 1 && grid[rowIndex + 1][columnIndex] === CellType.TREE) {
           continue
         }
-
-        changeCellType(rowIndex, columnIndex, CellType.DEFAULT)
+        updatedGrid[rowIndex][columnIndex] = CellType.DEFAULT
       }
     }
+    setGrid(updatedGrid)
   }, [flood])
 
   return (
