@@ -99,7 +99,7 @@ const ActionDialog = ({ id, isOpen, setNotOpen, cellType, setCellType, role }) =
             <div className="w-10 h-10">
               <Tree
                 onClick={() => {
-                  setCellType(CellType.TREE);
+                  setCellType(CellType.GROWINGTREE);
                   closeModal()
                 }}
               />
