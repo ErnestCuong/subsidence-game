@@ -2,8 +2,8 @@ import { useEffect, useState } from "react"
 import Table, { Role } from "./Table"
 import { Toaster, toast } from 'react-hot-toast';
 
-const RIVER_DEPTH = 10;
-const MAX_RAIN = 12;
+const RIVER_DEPTH = 20;
+const MAX_RAIN = 25;
 
 const Board = () => {
 	const [resetFlag, setResetFlag] = useState(0)
@@ -16,6 +16,7 @@ const Board = () => {
 	const [subsidence, setSubsidence] = useState(JSON.parse(localStorage.getItem("subsidence"))?.subsidence ?? 0)
 	const [subsidence1, setSubsidence1] = useState(-1)
 	const [subsidence2, setSubsidence2] = useState(-1)
+	const [floodProb, setFloodProb] = useState(0)
 
 	useEffect(() => {
 		localStorage.setItem("sediment", JSON.stringify({ sediment: sediment }))
@@ -75,9 +76,18 @@ const Board = () => {
 
 	const getFloodLevel = () => {
 		const rainLevel = Math.floor(Math.random() * MAX_RAIN)
-		const sedimentLevel = Math.floor(sediment / 50)
-		const subsidenceLevel = Math.floor(subsidence / 50)
+		const sedimentLevel = Math.floor(sediment / 20)
+		const subsidenceLevel = Math.floor(subsidence / 10)
 		const floodLevel = sedimentLevel + rainLevel + subsidenceLevel - RIVER_DEPTH
+		if (floodLevel <= 0 && Math.random() < floodProb) {
+			setFloodProb(0)
+			const newRainLevel = Math.floor(Math.random() * (MAX_RAIN - RIVER_DEPTH) + 1 + RIVER_DEPTH)
+			const newFloodLevel = sedimentLevel + subsidenceLevel + newRainLevel - RIVER_DEPTH
+			return newFloodLevel > 10 ? 10 : newFloodLevel
+		}
+		if (floodLevel <= 0) {
+			setFloodProb(floodProb + (1-floodProb)*0.5)
+		}
 		return floodLevel > 10 ? 10 : floodLevel < 0 ? 0 : floodLevel
 	}
 
@@ -98,14 +108,14 @@ const Board = () => {
 	}
 
 	return (
-		<div className="flex flex-col items-start ml-10">
-			<div className="flex gap-20 items-center">
+		<div className="flex flex-col items-start mx-10">
+			<div className="flex gap-20 items-center justify-center w-full">
 				<p className="font-bold">{`Sediment Level: ${sediment}`}</p>
 				<p className="font-bold">{`Subsidence Level: ${subsidence}`}</p>
 				<button className="btn bg-red-300" onClick={restart}>Reset Game</button>
 				<button className="btn bg-green-300" onClick={next}>Next Round</button>
 			</div>
-			<div className="flex flex-row flex-shrink-0 mt-10">
+			<div className="flex flex-row flex-shrink-0 mt-10 w-full justify-center">
 				<Table id="resident" isRotated={true} title="Residential Area" role={Role.RESIDENTS} resetFlag={resetFlag} nextFlag={nextFlag} flood={flood} addSediment={setSediment1} increaseSubsidence={setSubsidence1}/>
 				<Table id="corporate" isRotated={false} title="Industrial Area" role={Role.COMPANIES} resetFlag={resetFlag} nextFlag={nextFlag} flood={flood} addSediment={setSediment2} increaseSubsidence={setSubsidence2}/>
 			</div>

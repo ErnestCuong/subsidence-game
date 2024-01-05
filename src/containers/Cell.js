@@ -5,6 +5,7 @@ import Factory from "../components/Factory"
 import Tree from "../components/Tree"
 import Trash from "../components/Trash"
 import Default from "../components/Default"
+import GrowingTree from "../components/GrowingTree"
 
 export const CellType = {
   DEFAULT: 0,
@@ -13,7 +14,8 @@ export const CellType = {
   HOME: 3,
   FACTORY: 4,
   TREE: 5,
-  TRASH: 6
+  TRASH: 6,
+  GROWINGTREE: 7,
 }
 
 const Cell = ({ onClick, cellType, disabled, className }) => {
@@ -26,6 +28,7 @@ const Cell = ({ onClick, cellType, disabled, className }) => {
       {cellType === CellType.FACTORY && <Factory onClick={onClick} disabled={disabled} />}
       {cellType === CellType.TREE && <Tree onClick={onClick} disabled={disabled} />}
       {cellType === CellType.TRASH && <Trash onClick={onClick} disabled={disabled} />}
+      {cellType === CellType.GROWINGTREE && <GrowingTree onClick={onClick} disabled={disabled} />}
     </div>
   )
 }
