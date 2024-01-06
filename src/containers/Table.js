@@ -7,6 +7,7 @@ const ROW_LENGTH = 10;
 const COLUMN_LENGTH = 10;
 const MIN_ACTIONS_PER_ROUND = 5;
 const MAX_ACTIONS_PER_ROUND = 15;
+const TAX_RATE = 0.3;
 
 export const Role = {
   RESIDENTS: 0,
@@ -149,6 +150,7 @@ const Table = ({
   flood,
   addSediment,
   increaseSubsidence,
+  payTax
 }) => {
   const [grid, setGrid] = useState(
     JSON.parse(localStorage.getItem(id))?.grid ?? getNewGrid()
@@ -294,7 +296,10 @@ const Table = ({
     }
 
     addSediment(getNewSediment());
-    setBudget(budget + calculateProfit(grid));
+    const profit = calculateProfit(grid)
+    const tax = Math.floor(profit * TAX_RATE)
+    setBudget(budget + profit - tax);
+    payTax(tax)
     increaseSubsidence(getNewSubsidence());
     setActions([]);
 
