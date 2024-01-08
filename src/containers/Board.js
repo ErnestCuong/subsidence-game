@@ -99,6 +99,7 @@ const Board = () => {
     setNextFlag(0);
     setSediment(0);
     setSubsidence(0);
+    setGovBudget(0);
     toast.success("New Game!", {
       position: "bottom-center",
     });

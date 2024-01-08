@@ -2,6 +2,13 @@ import { useEffect, useState } from "react";
 import Cell, { CellType } from "./Cell";
 import ActionDialog from "./ActionDialog";
 import toast from "react-hot-toast";
+import Home from "../components/Home";
+import Default from "../components/Default";
+import Factory from "../components/Factory";
+import Road from "../components/Road";
+import Tree from "../components/Tree";
+import Trash from "../components/Trash";
+import GrowingTree from "../components/GrowingTree";
 
 const ROW_LENGTH = 10;
 const COLUMN_LENGTH = 10;
@@ -108,7 +115,10 @@ const getOperableGrid = (grid) => {
         columnIndex < COLUMN_LENGTH &&
         updatedGrid[rowIndex][columnIndex + 1] === CellType.ROAD;
 
-      if (topIsRoad || bottomIsRoad || riverSideIsRoad || landSideIsRoad) {
+      const isConnected = topIsRoad || bottomIsRoad || riverSideIsRoad || landSideIsRoad
+      const isGrowingTree = grid[rowIndex][columnIndex] === CellType.GROWINGTREE
+
+      if (isConnected && !isGrowingTree) {
         updatedGrid[rowIndex][columnIndex] = grid[rowIndex][columnIndex];
       }
     }
@@ -140,6 +150,71 @@ const calculateProfit = (grid) => {
   return profit;
 };
 
+const ActionBar = ({ selectedType, setSelectedType, role, undo }) => {
+  return (
+    <div className="px-4 flex flex-col items-center gap-8">
+      <p className="font-bold text-lg">ACTIONS</p>
+      <div
+        className={`w-10 h-10 bg-white border ${
+          selectedType === CellType.DEFAULT
+            ? "border-black border-2"
+            : "border-2"
+        }`}
+      >
+        <Default onClick={() => setSelectedType(CellType.DEFAULT)} />
+      </div>
+      {role === Role.RESIDENTS && (
+        <div
+          className={`w-10 h-10 border ${
+            selectedType === CellType.HOME
+              ? "border-black border-2"
+              : "border-2"
+          }`}
+        >
+          <Home onClick={() => setSelectedType(CellType.HOME)} />
+        </div>
+      )}
+      {role === Role.COMPANIES && (
+        <div
+          className={`w-10 h-10 border ${
+            selectedType === CellType.FACTORY
+              ? "border-black border-2"
+              : "border-2"
+          }`}
+        >
+          <Factory onClick={() => setSelectedType(CellType.FACTORY)} />
+        </div>
+      )}
+      <div
+        className={`w-10 h-10 border ${
+          selectedType === CellType.ROAD ? "border-black border-2" : "border-2"
+        }`}
+      >
+        <Road onClick={() => setSelectedType(CellType.ROAD)} />
+      </div>
+      <div
+        className={`w-10 h-10 border ${
+          selectedType === CellType.GROWINGTREE
+            ? "border-black border-2"
+            : "border-2"
+        }`}
+      >
+        <GrowingTree onClick={() => setSelectedType(CellType.GROWINGTREE)} />
+      </div>
+      <div
+        className={`w-10 h-10 border ${
+          selectedType === CellType.TRASH ? "border-black border-2" : "border-2"
+        }`}
+      >
+        <Trash onClick={() => setSelectedType(CellType.TRASH)} />
+      </div>
+      <button className="btn bg-red-200 hover:bg-red-300" onClick={undo}>
+        UNDO
+      </button>
+    </div>
+  );
+};
+
 const Table = ({
   id,
   isRotated,
@@ -150,22 +225,31 @@ const Table = ({
   flood,
   addSediment,
   increaseSubsidence,
-  payTax
+  payTax,
 }) => {
   const [grid, setGrid] = useState(
     JSON.parse(localStorage.getItem(id))?.grid ?? getNewGrid()
   );
+  const [originalGrid, setOriginalGrid] = useState(grid ?? getNewGrid());
   const [budget, setBudget] = useState(
     JSON.parse(localStorage.getItem(id))?.budget ?? 0
   );
   const [actions, setActions] = useState([]);
+  const [selectedType, setSelectedType] = useState(CellType.DEFAULT);
 
   const changeCellType = (rowIndex, columnIndex, newCellType) => {
     // Create a deep copy of the grid
     const updatedGrid = [...grid.map((row) => [...row])];
 
     // Update the value of the specific cell
-    updatedGrid[rowIndex][columnIndex] = newCellType;
+    if (
+      newCellType === CellType.GROWINGTREE &&
+      originalGrid[rowIndex][columnIndex] === CellType.TREE
+    ) {
+      updatedGrid[rowIndex][columnIndex] = CellType.TREE;
+    } else {
+      updatedGrid[rowIndex][columnIndex] = newCellType;
+    }
 
     // Set the state with the updated copy
     setGrid(updatedGrid);
@@ -175,8 +259,8 @@ const Table = ({
     return grid[rowIndex][columnIndex];
   };
 
-  const [activeCellID, setActiveCellID] = useState([0, 0]);
-  const [modalOpen, setModalOpen] = useState(false);
+  // const [activeCellID, setActiveCellID] = useState([0, 0]);
+  // const [modalOpen, setModalOpen] = useState(false);
 
   const getNewSubsidence = () =>
     actions.reduce((prev, curr) => {
@@ -228,12 +312,12 @@ const Table = ({
         columnIndex++
       ) {
         if (updatedGrid[rowIndex][columnIndex] === CellType.GROWINGTREE) {
-          console.log(rowIndex, columnIndex);
           updatedGrid[rowIndex][columnIndex] = CellType.TREE;
         }
       }
     }
     setGrid(updatedGrid);
+    setOriginalGrid(updatedGrid)
   };
 
   useEffect(() => {
@@ -245,10 +329,10 @@ const Table = ({
       return;
     }
     setGrid(getNewGrid());
+    setOriginalGrid(getNewGrid());
     setBudget(0);
     setActions([]);
   }, [resetFlag]);
-
 
   useEffect(() => {
     if (nextFlag !== flood.round) {
@@ -287,7 +371,7 @@ const Table = ({
         updatedGrid[rowIndex][columnIndex] = CellType.DEFAULT;
       }
     }
-    growTrees(updatedGrid)
+    growTrees(updatedGrid);
   }, [flood]);
 
   useEffect(() => {
@@ -296,13 +380,12 @@ const Table = ({
     }
 
     addSediment(getNewSediment());
-    const profit = calculateProfit(grid)
-    const tax = Math.floor(profit * TAX_RATE)
+    const profit = calculateProfit(grid);
+    const tax = Math.floor(profit * TAX_RATE);
     setBudget(budget + profit - tax);
-    payTax(tax)
+    payTax(tax);
     increaseSubsidence(getNewSubsidence());
     setActions([]);
-
   }, [nextFlag]);
 
   const [operableGrid, setOperableGrid] = useState(getOperableGrid(grid));
@@ -318,9 +401,9 @@ const Table = ({
   };
 
   return (
-    <div className={`inline-container flex-shrink-0`}>
+    <div className={`inline-container flex-shrink-0 flex flex-row`}>
       {/* <h className="h-10 font-bold">{title}</h> */}
-      <ActionDialog
+      {/* <ActionDialog
         id={`dialog-${id}`}
         isOpen={modalOpen}
         setNotOpen={() => setModalOpen(false)}
@@ -355,7 +438,21 @@ const Table = ({
           changeCellType(activeCellID[0], activeCellID[1], newCellType);
         }}
         role={role}
-      />
+      /> */}
+      {isRotated && (
+        <ActionBar
+          selectedType={selectedType}
+          setSelectedType={setSelectedType}
+          role={role}
+          undo={() => {
+            if (actions.length === 0) {
+              return;
+            }
+            const action = actions.pop();
+            changeCellType(action[0], action[1], action[2]);
+          }}
+        />
+      )}
       <table className="table-auto border">
         <thead>
           <tr>
@@ -403,11 +500,59 @@ const Table = ({
                       isRotated ? COLUMN_LENGTH - columnIndex : columnIndex
                     )}
                     onClick={() => {
-                      setActiveCellID([
-                        rowIndex,
-                        isRotated ? COLUMN_LENGTH - columnIndex : columnIndex,
+                      const rowID = rowIndex;
+                      const colID = isRotated
+                        ? COLUMN_LENGTH - columnIndex
+                        : columnIndex;
+                      const newCellType = selectedType;
+
+                      if (newCellType === grid[rowID][colID]) {
+                        toast.error("No change", {
+                          position: "bottom-center",
+                        });
+                        return;
+                      }
+
+                      if (
+                        newCellType === CellType.GROWINGTREE &&
+                        grid[rowID][colID] === CellType.TREE
+                      ) {
+                        toast.error("No change", {
+                          position: "bottom-center",
+                        });
+                        return;
+                      }
+
+                      const newActions = actions.filter(
+                        (action) => action[0] !== rowID || action[1] !== colID
+                      );
+
+                      if (
+                        actions.length === newActions.length &&
+                        actions.length >= getActionsPerRound()
+                      ) {
+                        toast.error("No more action this round", {
+                          position: "bottom-center",
+                        });
+                        return;
+                      }
+
+                      if (
+                        actions.length > newActions.length &&
+                        (newCellType === originalGrid[rowID][colID] ||
+                          (newCellType === CellType.GROWINGTREE &&
+                            originalGrid[rowID][colID] === CellType.TREE))
+                      ) {
+                        setActions(newActions);
+                        changeCellType(rowID, colID, newCellType);
+                        return;
+                      }
+
+                      setActions([
+                        ...newActions,
+                        [rowID, colID, grid[rowID][colID]],
                       ]);
-                      setModalOpen(true);
+                      changeCellType(rowID, colID, newCellType);
                     }}
                     disabled={
                       (isRotated && COLUMN_LENGTH - columnIndex === 0) ||
@@ -441,7 +586,7 @@ const Table = ({
               colSpan={COLUMN_LENGTH + 1}
             >{`Subsidence: +${getNewSubsidence()}`}</th>
           </tr>
-          <tr className="border border-transparent">
+          {/* <tr className="border border-transparent">
             <th colSpan={COLUMN_LENGTH + 1}>
               <button
                 className="btn"
@@ -456,9 +601,23 @@ const Table = ({
                 UNDO ACTION
               </button>
             </th>
-          </tr>
+          </tr> */}
         </tbody>
       </table>
+      {!isRotated && (
+        <ActionBar
+          selectedType={selectedType}
+          setSelectedType={setSelectedType}
+          role={role}
+          undo={() => {
+            if (actions.length === 0) {
+              return;
+            }
+            const action = actions.pop();
+            changeCellType(action[0], action[1], action[2]);
+          }}
+        />
+      )}
 
       {/* <table className="table-auto border opacity-50">
         <thead>
