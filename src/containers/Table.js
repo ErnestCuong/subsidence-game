@@ -343,10 +343,10 @@ const Table = ({
     for (let rowIndex = 0; rowIndex < ROW_LENGTH; rowIndex++) {
       for (let columnIndex = 1; columnIndex < flood.level + 1; columnIndex++) {
         if (
-          grid[rowIndex][columnIndex] === CellType.DEFAULT ||
-          grid[rowIndex][columnIndex] === CellType.ROAD ||
-          grid[rowIndex][columnIndex] === CellType.TREE ||
-          grid[rowIndex][columnIndex] === CellType.WATER
+          grid[rowIndex][columnIndex] === CellType.DEFAULT
+          // || grid[rowIndex][columnIndex] === CellType.ROAD
+          || grid[rowIndex][columnIndex] === CellType.TREE
+          || grid[rowIndex][columnIndex] === CellType.WATER
         ) {
           continue;
         }
