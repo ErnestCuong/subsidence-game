@@ -264,7 +264,7 @@ const Table = ({
     actions.reduce((prev, curr) => {
       const row = curr[0];
       const col = curr[1];
-      const oldCellType = curr[2];
+      const oldCellType = originalGrid[row][col];
       const newCellType = grid[row][col];
       if (oldCellType !== CellType.DEFAULT) {
         return prev;
@@ -319,6 +319,13 @@ const Table = ({
         }
       }
     }
+    for (let rowIndex = 0; rowIndex < ROW_LENGTH; rowIndex++) {
+      for (let columnIndex = 1; columnIndex < flood.level + 1; columnIndex++) {
+        if (updatedGrid[rowIndex][columnIndex] === CellType.TREE) {
+          updatedGrid[rowIndex][columnIndex] = CellType.GROWINGTREE
+        }
+      }
+    }
     setGrid(updatedGrid);
     setOriginalGrid(updatedGrid)
   };
@@ -347,7 +354,7 @@ const Table = ({
       for (let columnIndex = 1; columnIndex < flood.level + 1; columnIndex++) {
         if (
           grid[rowIndex][columnIndex] === CellType.DEFAULT
-          // || grid[rowIndex][columnIndex] === CellType.ROAD
+          || grid[rowIndex][columnIndex] === CellType.GROWINGTREE
           || grid[rowIndex][columnIndex] === CellType.TREE
           || grid[rowIndex][columnIndex] === CellType.WATER
         ) {
@@ -505,10 +512,10 @@ const Table = ({
                 <td
                   key={isRotated ? COLUMN_LENGTH - columnIndex : columnIndex}
                   className={`border border-2 border-black ${originalGrid[rowIndex][isRotated ? (COLUMN_LENGTH - columnIndex) : columnIndex]
-                      ===
-                      grid[rowIndex][isRotated ? (COLUMN_LENGTH - columnIndex) : columnIndex]
-                      ? ''
-                      : 'border-red-600'
+                    ===
+                    grid[rowIndex][isRotated ? (COLUMN_LENGTH - columnIndex) : columnIndex]
+                    ? ''
+                    : 'border-red-600'
                     } w-10 h-10`}
                 >
                   <Cell
@@ -550,7 +557,7 @@ const Table = ({
                         return;
                       }
 
-                      if (grid[rowID][colID] !== CellType.DEFAULT && newCellType !== CellType.DEFAULT) {
+                      if (originalGrid[rowID][colID] !== CellType.DEFAULT && grid[rowID][colID] !== CellType.DEFAULT && newCellType !== CellType.DEFAULT) {
                         toast.error("Empty the cell first", {
                           position: "bottom-center",
                         })
