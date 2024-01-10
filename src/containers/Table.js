@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Cell, { CellType } from "./Cell";
 import ActionDialog from "./ActionDialog";
 import toast from "react-hot-toast";
@@ -27,8 +27,8 @@ const getNewGrid = () => {
       index === 0
         ? CellType.WATER
         : index > 1 && index < 4
-        ? CellType.TREE
-        : CellType.DEFAULT
+          ? CellType.TREE
+          : CellType.DEFAULT
     )
   );
 };
@@ -140,10 +140,14 @@ const calculateProfit = (grid) => {
   for (let rowIndex = 0; rowIndex < ROW_LENGTH; rowIndex++) {
     for (let columnIndex = 1; columnIndex < COLUMN_LENGTH + 1; columnIndex++) {
       if (
-        operableGrid[rowIndex][columnIndex] === CellType.HOME ||
-        operableGrid[rowIndex][columnIndex] === CellType.FACTORY
+        operableGrid[rowIndex][columnIndex] === CellType.HOME
       ) {
         profit = profit + 1;
+      }
+      if (
+        operableGrid[rowIndex][columnIndex] === CellType.FACTORY
+      ) {
+        profit = profit + 2;
       }
     }
   }
@@ -155,56 +159,50 @@ const ActionBar = ({ selectedType, setSelectedType, role, undo }) => {
     <div className="px-4 flex flex-col items-center gap-8">
       <p className="font-bold text-lg">ACTIONS</p>
       <div
-        className={`w-10 h-10 bg-white border ${
-          selectedType === CellType.DEFAULT
-            ? "border-black border-2"
-            : "border-2"
-        }`}
+        className={`w-10 h-10 bg-white border ${selectedType === CellType.DEFAULT
+          ? "border-black border-2"
+          : "border-2"
+          }`}
       >
         <Default onClick={() => setSelectedType(CellType.DEFAULT)} />
       </div>
       {role === Role.RESIDENTS && (
         <div
-          className={`w-10 h-10 border ${
-            selectedType === CellType.HOME
-              ? "border-black border-2"
-              : "border-2"
-          }`}
+          className={`w-10 h-10 border ${selectedType === CellType.HOME
+            ? "border-black border-2"
+            : "border-2"
+            }`}
         >
           <Home onClick={() => setSelectedType(CellType.HOME)} />
         </div>
       )}
       {role === Role.COMPANIES && (
         <div
-          className={`w-10 h-10 border ${
-            selectedType === CellType.FACTORY
-              ? "border-black border-2"
-              : "border-2"
-          }`}
+          className={`w-10 h-10 border ${selectedType === CellType.FACTORY
+            ? "border-black border-2"
+            : "border-2"
+            }`}
         >
           <Factory onClick={() => setSelectedType(CellType.FACTORY)} />
         </div>
       )}
       <div
-        className={`w-10 h-10 border ${
-          selectedType === CellType.ROAD ? "border-black border-2" : "border-2"
-        }`}
+        className={`w-10 h-10 border ${selectedType === CellType.ROAD ? "border-black border-2" : "border-2"
+          }`}
       >
         <Road onClick={() => setSelectedType(CellType.ROAD)} />
       </div>
       <div
-        className={`w-10 h-10 border ${
-          selectedType === CellType.GROWINGTREE
-            ? "border-black border-2"
-            : "border-2"
-        }`}
+        className={`w-10 h-10 border ${selectedType === CellType.GROWINGTREE
+          ? "border-black border-2"
+          : "border-2"
+          }`}
       >
         <GrowingTree onClick={() => setSelectedType(CellType.GROWINGTREE)} />
       </div>
       <div
-        className={`w-10 h-10 border ${
-          selectedType === CellType.TRASH ? "border-black border-2" : "border-2"
-        }`}
+        className={`w-10 h-10 border ${selectedType === CellType.TRASH ? "border-black border-2" : "border-2"
+          }`}
       >
         <Trash onClick={() => setSelectedType(CellType.TRASH)} />
       </div>
@@ -290,10 +288,15 @@ const Table = ({
         columnIndex++
       ) {
         if (
-          operableGrid[rowIndex][columnIndex] === CellType.HOME ||
-          operableGrid[rowIndex][columnIndex] === CellType.FACTORY
+          operableGrid[rowIndex][columnIndex] === CellType.HOME
         ) {
           newSediment = newSediment + 1;
+        }
+
+        if (
+          operableGrid[rowIndex][columnIndex] === CellType.FACTORY
+        ) {
+          newSediment = newSediment + 4;
         }
 
         if (operableGrid[rowIndex][columnIndex] === CellType.TRASH) {
@@ -392,8 +395,27 @@ const Table = ({
 
   useEffect(() => setOperableGrid(getOperableGrid(grid)), [grid]);
 
+  const getTreeProfit = () => {
+    let profit = 0
+    for (let rowIndex = 0; rowIndex < ROW_LENGTH; rowIndex++) {
+      for (
+        let columnIndex = 1;
+        columnIndex < COLUMN_LENGTH + 1;
+        columnIndex++
+      ) {
+        if (originalGrid[rowIndex][columnIndex] === CellType.TREE && grid[rowIndex][columnIndex] !== CellType.TREE) {
+          profit = profit + 2
+        }
+      }
+    }
+
+    console.log(profit)
+
+    return profit
+  }
+
   const getActionsPerRound = () => {
-    const extraActions = Math.floor(calculateProfit(grid) / 10);
+    const extraActions = Math.floor(calculateProfit(grid) / 10) + getTreeProfit();
     if (extraActions + MIN_ACTIONS_PER_ROUND > MAX_ACTIONS_PER_ROUND) {
       return MAX_ACTIONS_PER_ROUND;
     }
@@ -453,12 +475,12 @@ const Table = ({
           }}
         />
       )}
-      <table className="table-auto border">
+      <table className="table-auto border border-separate border-spacing-0 border-2 border-black">
         <thead>
           <tr>
             <th
               colSpan={COLUMN_LENGTH + 1}
-              className="font-bold bg-yellow-300 border-4 border-black"
+              className="font-bold bg-yellow-300 border-2 border-black"
             >
               {title}
             </th>
@@ -469,7 +491,7 @@ const Table = ({
             {Array.from({ length: COLUMN_LENGTH + 1 }, (_, index) => (
               <th
                 key={isRotated ? COLUMN_LENGTH - index : index}
-                className="border-4 border-black w-10 h-10 bg-gray-500"
+                className="border-2 border-black w-10 h-10 bg-gray-500"
               >
                 {isRotated ? COLUMN_LENGTH - index : index}
               </th>
@@ -482,16 +504,21 @@ const Table = ({
               {Array.from({ length: COLUMN_LENGTH + 1 }, (_, columnIndex) => (
                 <td
                   key={isRotated ? COLUMN_LENGTH - columnIndex : columnIndex}
-                  className="border border-4 border-black w-10 h-10"
+                  className={`border border-2 border-black ${originalGrid[rowIndex][isRotated ? (COLUMN_LENGTH - columnIndex) : columnIndex]
+                      ===
+                      grid[rowIndex][isRotated ? (COLUMN_LENGTH - columnIndex) : columnIndex]
+                      ? ''
+                      : 'border-red-600'
+                    } w-10 h-10`}
                 >
                   <Cell
                     className={
                       grid[rowIndex][
                         isRotated ? COLUMN_LENGTH - columnIndex : columnIndex
                       ] ===
-                      operableGrid[rowIndex][
+                        operableGrid[rowIndex][
                         isRotated ? COLUMN_LENGTH - columnIndex : columnIndex
-                      ]
+                        ]
                         ? ""
                         : "opacity-40"
                     }
@@ -521,6 +548,27 @@ const Table = ({
                           position: "bottom-center",
                         });
                         return;
+                      }
+
+                      if (grid[rowID][colID] !== CellType.DEFAULT && newCellType !== CellType.DEFAULT) {
+                        toast.error("Empty the cell first", {
+                          position: "bottom-center",
+                        })
+                        return
+                      }
+
+                      if (originalGrid[rowID][colID] !== CellType.DEFAULT && originalGrid[rowID][colID] !== CellType.TREE && newCellType !== CellType.DEFAULT && newCellType !== originalGrid[rowID][colID]) {
+                        toast.error("You can only perform one action per cell this round", {
+                          position: "bottom-center",
+                        })
+                        return
+                      }
+
+                      if (originalGrid[rowID][colID] === CellType.TREE && newCellType !== CellType.DEFAULT && newCellType !== CellType.GROWINGTREE) {
+                        toast.error("You can only perform one action per cell this round", {
+                          position: "bottom-center",
+                        })
+                        return
                       }
 
                       const newActions = actions.filter(
