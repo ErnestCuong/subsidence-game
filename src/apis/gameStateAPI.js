@@ -6,13 +6,11 @@ async function getGameState(role) {
     method: 'GET',
   })
   const body = await res.json()
-  console.log(body)
   return body
 }
 
 function updateGameState(role, data) {
   const jsonData = JSON.stringify(data)
-  console.log("YUOOOO", jsonData)
   return fetch(`${baseUrl}/api/${role}/`, {
     method: 'POST',
     headers: {

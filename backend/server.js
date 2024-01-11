@@ -10,6 +10,11 @@ app.use(cors());
 // Your JSON data storage
 let residents = [];
 let industrialists = []
+let board = {
+  sediment: 0,
+  subsidence: 0,
+  govBudget: 0
+}
 
 // Endpoint to get JSON data
 app.get('/api/residents', (req, res) => {
@@ -18,6 +23,10 @@ app.get('/api/residents', (req, res) => {
 
 app.get('/api/industrialists', (req, res) => {
   res.json(industrialists);
+});
+
+app.get('/api/board', (req, res) => {
+  res.json(board);
 });
 
 // Endpoint to add data
@@ -30,6 +39,12 @@ app.post('/api/residents', (req, res) => {
 app.post('/api/industrialists', (req, res) => {
   const newData = req.body;
   industrialists = newData;
+  res.json({ message: 'Data added successfully', data: newData });
+});
+
+app.post('/api/board', (req, res) => {
+  const newData = req.body;
+  board = newData;
   res.json({ message: 'Data added successfully', data: newData });
 });
 
