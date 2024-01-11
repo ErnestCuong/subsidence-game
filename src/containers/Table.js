@@ -231,6 +231,7 @@ const Table = ({
   addSediment,
   increaseSubsidence,
   payTax,
+  player
 }) => {
   const [grid, setGrid] = useState(
     // JSON.parse(localStorage.getItem(id))?.grid ?? getNewGrid()
@@ -464,7 +465,7 @@ const Table = ({
 
   return (
     <>
-      {grid && (<div className={`inline-container flex-shrink-0 flex flex-row`}>
+      {grid && (<div className={`inline-container flex-shrink-0 flex flex-row ${player === role ? '' : 'pointer-events-none opacity-40'}`}>
         {isRotated && (
           <ActionBar
             selectedType={selectedType}
