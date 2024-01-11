@@ -9,6 +9,7 @@ import Road from "../components/Road";
 import Tree from "../components/Tree";
 import Trash from "../components/Trash";
 import GrowingTree from "../components/GrowingTree";
+import { getGameState, updateGameState } from "../apis/gameStateAPI";
 
 const ROW_LENGTH = 10;
 const COLUMN_LENGTH = 10;
@@ -17,8 +18,8 @@ const MAX_ACTIONS_PER_ROUND = 15;
 const TAX_RATE = 0.3;
 
 export const Role = {
-  RESIDENTS: 0,
-  COMPANIES: 1,
+  RESIDENTS: 'residents',
+  COMPANIES: 'industrialists',
 };
 
 const getNewGrid = () => {
@@ -42,6 +43,9 @@ const getEmptyGrid = () => {
 };
 
 const getOperableGrid = (grid) => {
+  if (!grid) {
+    return undefined
+  }
   const updatedGrid = getEmptyGrid();
 
   const queue = [];
@@ -136,6 +140,9 @@ const getOperableGrid = (grid) => {
 
 const calculateProfit = (grid) => {
   const operableGrid = getOperableGrid(grid);
+  if (!operableGrid) {
+    return 0
+  }
   let profit = 0;
   for (let rowIndex = 0; rowIndex < ROW_LENGTH; rowIndex++) {
     for (let columnIndex = 1; columnIndex < COLUMN_LENGTH + 1; columnIndex++) {
@@ -226,16 +233,36 @@ const Table = ({
   payTax,
 }) => {
   const [grid, setGrid] = useState(
-    JSON.parse(localStorage.getItem(id))?.grid ?? getNewGrid()
+    // JSON.parse(localStorage.getItem(id))?.grid ?? getNewGrid()
+    undefined
   );
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const res = await getGameState(role)
+      if (res.length === 0) {
+        setGrid(getNewGrid())
+        updateGameState(role, getNewGrid())
+        return
+      }
+      setGrid(res)
+    }
+    fetchData()
+  }, [])
+
+
   const [originalGrid, setOriginalGrid] = useState(grid ?? getNewGrid());
   const [budget, setBudget] = useState(
-    JSON.parse(localStorage.getItem(id))?.budget ?? 0
+    // JSON.parse(localStorage.getItem(id))?.budget ?? 0
+    0
   );
   const [actions, setActions] = useState([]);
   const [selectedType, setSelectedType] = useState(CellType.DEFAULT);
 
   const changeCellType = (rowIndex, columnIndex, newCellType) => {
+    if (!grid) {
+      return
+    }
     // Create a deep copy of the grid
     const updatedGrid = [...grid.map((row) => [...row])];
 
@@ -251,6 +278,7 @@ const Table = ({
 
     // Set the state with the updated copy
     setGrid(updatedGrid);
+    updateGameState(role, updatedGrid)
   };
 
   const getCellType = (rowIndex, columnIndex) => {
@@ -281,6 +309,9 @@ const Table = ({
 
   const getNewSediment = () => {
     let newSediment = 0;
+    if (!operableGrid) {
+      return newSediment
+    }
     for (let rowIndex = 0; rowIndex < ROW_LENGTH; rowIndex++) {
       for (
         let columnIndex = 1;
@@ -327,25 +358,27 @@ const Table = ({
       }
     }
     setGrid(updatedGrid);
+    updateGameState(role, updatedGrid)
     setOriginalGrid(updatedGrid)
   };
 
-  useEffect(() => {
-    localStorage.setItem(id, JSON.stringify({ grid: grid, budget: budget }));
-  }, [grid, budget, id]);
+  // useEffect(() => {
+  //   localStorage.setItem(id, JSON.stringify({ grid: grid, budget: budget }));
+  // }, [grid, budget, id]);
 
   useEffect(() => {
     if (resetFlag === 0) {
       return;
     }
     setGrid(getNewGrid());
+    updateGameState(role, getNewGrid())
     setOriginalGrid(getNewGrid());
     setBudget(0);
     setActions([]);
   }, [resetFlag]);
 
   useEffect(() => {
-    if (nextFlag !== flood.round) {
+    if (nextFlag !== flood.round || !grid) {
       return;
     }
     const updatedGrid = [...grid.map((row) => [...row])];
@@ -398,7 +431,7 @@ const Table = ({
     setActions([]);
   }, [nextFlag]);
 
-  const [operableGrid, setOperableGrid] = useState(getOperableGrid(grid));
+  const [operableGrid, setOperableGrid] = useState(undefined);
 
   useEffect(() => setOperableGrid(getOperableGrid(grid)), [grid]);
 
@@ -416,8 +449,6 @@ const Table = ({
       }
     }
 
-    console.log(profit)
-
     return profit
   }
 
@@ -430,289 +461,199 @@ const Table = ({
   };
 
   return (
-    <div className={`inline-container flex-shrink-0 flex flex-row`}>
-      {/* <h className="h-10 font-bold">{title}</h> */}
-      {/* <ActionDialog
-        id={`dialog-${id}`}
-        isOpen={modalOpen}
-        setNotOpen={() => setModalOpen(false)}
-        cellType={getCellType(activeCellID[0], activeCellID[1])}
-        setCellType={(newCellType) => {
-          const newActions = actions.filter(
-            (action) =>
-              action[0] !== activeCellID[0] ||
-              action[1] !== activeCellID[1] ||
-              action[2] !== newCellType
-          );
-          if (actions.length > newActions.length) {
-            setActions(newActions);
-            changeCellType(activeCellID[0], activeCellID[1], newCellType);
-            return;
-          }
-
-          if (actions.length >= getActionsPerRound()) {
-            toast.error("No more action this round", {
-              position: "bottom-center",
-            });
-            return;
-          }
-          setActions([
-            ...actions,
-            [
-              activeCellID[0],
-              activeCellID[1],
-              grid[activeCellID[0]][activeCellID[1]],
-            ],
-          ]);
-          changeCellType(activeCellID[0], activeCellID[1], newCellType);
-        }}
-        role={role}
-      /> */}
-      {isRotated && (
-        <ActionBar
-          selectedType={selectedType}
-          setSelectedType={setSelectedType}
-          role={role}
-          undo={() => {
-            if (actions.length === 0) {
-              return;
-            }
-            const action = actions.pop();
-            changeCellType(action[0], action[1], action[2]);
-          }}
-        />
-      )}
-      <table className="table-auto border border-separate border-spacing-0 border-2 border-black">
-        <thead>
-          <tr>
-            <th
-              colSpan={COLUMN_LENGTH + 1}
-              className="font-bold bg-yellow-300 border-2 border-black"
-            >
-              {title}
-            </th>
-          </tr>
-        </thead>
-        <thead>
-          <tr>
-            {Array.from({ length: COLUMN_LENGTH + 1 }, (_, index) => (
+    <>
+      {grid && (<div className={`inline-container flex-shrink-0 flex flex-row`}>
+        {isRotated && (
+          <ActionBar
+            selectedType={selectedType}
+            setSelectedType={setSelectedType}
+            role={role}
+            undo={() => {
+              if (actions.length === 0) {
+                return;
+              }
+              const action = actions.pop();
+              changeCellType(action[0], action[1], action[2]);
+            }}
+          />
+        )}
+        <table className="table-auto border border-separate border-spacing-0 border-2 border-black">
+          <thead>
+            <tr>
               <th
-                key={isRotated ? COLUMN_LENGTH - index : index}
-                className="border-2 border-black w-10 h-10 bg-gray-500"
+                colSpan={COLUMN_LENGTH + 1}
+                className="font-bold bg-yellow-300 border-2 border-black"
               >
-                {isRotated ? COLUMN_LENGTH - index : index}
+                {title}
               </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {Array.from({ length: ROW_LENGTH }, (_, rowIndex) => (
-            <tr key={rowIndex}>
-              {Array.from({ length: COLUMN_LENGTH + 1 }, (_, columnIndex) => (
-                <td
-                  key={isRotated ? COLUMN_LENGTH - columnIndex : columnIndex}
-                  className={`border border-2 border-black ${originalGrid[rowIndex][isRotated ? (COLUMN_LENGTH - columnIndex) : columnIndex]
-                    ===
-                    grid[rowIndex][isRotated ? (COLUMN_LENGTH - columnIndex) : columnIndex]
-                    ? ''
-                    : 'border-red-600'
-                    } w-10 h-10`}
+            </tr>
+          </thead>
+          <thead>
+            <tr>
+              {Array.from({ length: COLUMN_LENGTH + 1 }, (_, index) => (
+                <th
+                  key={isRotated ? COLUMN_LENGTH - index : index}
+                  className="border-2 border-black w-10 h-10 bg-gray-500"
                 >
-                  <Cell
-                    className={
-                      grid[rowIndex][
+                  {isRotated ? COLUMN_LENGTH - index : index}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from({ length: ROW_LENGTH }, (_, rowIndex) => (
+              <tr key={rowIndex}>
+                {Array.from({ length: COLUMN_LENGTH + 1 }, (_, columnIndex) => (
+                  <td
+                    key={isRotated ? COLUMN_LENGTH - columnIndex : columnIndex}
+                    className={`border border-2 border-black ${originalGrid[rowIndex][isRotated ? (COLUMN_LENGTH - columnIndex) : columnIndex]
+                      ===
+                      grid[rowIndex][isRotated ? (COLUMN_LENGTH - columnIndex) : columnIndex]
+                      ? ''
+                      : 'border-red-600'
+                      } w-10 h-10`}
+                  >
+                    <Cell
+                      className={
+                        grid?.[rowIndex]?.[
+                          isRotated ? COLUMN_LENGTH - columnIndex : columnIndex
+                        ] ===
+                          operableGrid?.[rowIndex]?.[
+                          isRotated ? COLUMN_LENGTH - columnIndex : columnIndex
+                          ]
+                          ? ""
+                          : "opacity-40"
+                      }
+                      cellType={getCellType(
+                        rowIndex,
                         isRotated ? COLUMN_LENGTH - columnIndex : columnIndex
-                      ] ===
-                        operableGrid[rowIndex][
-                        isRotated ? COLUMN_LENGTH - columnIndex : columnIndex
-                        ]
-                        ? ""
-                        : "opacity-40"
-                    }
-                    cellType={getCellType(
-                      rowIndex,
-                      isRotated ? COLUMN_LENGTH - columnIndex : columnIndex
-                    )}
-                    onClick={() => {
-                      const rowID = rowIndex;
-                      const colID = isRotated
-                        ? COLUMN_LENGTH - columnIndex
-                        : columnIndex;
-                      const newCellType = selectedType;
+                      )}
+                      onClick={() => {
+                        const rowID = rowIndex;
+                        const colID = isRotated
+                          ? COLUMN_LENGTH - columnIndex
+                          : columnIndex;
+                        const newCellType = selectedType;
 
-                      if (newCellType === grid[rowID][colID]) {
-                        toast.error("No change", {
-                          position: "bottom-center",
-                        });
-                        return;
-                      }
+                        if (newCellType === grid[rowID][colID]) {
+                          toast.error("No change", {
+                            position: "bottom-center",
+                          });
+                          return;
+                        }
 
-                      if (
-                        newCellType === CellType.GROWINGTREE &&
-                        grid[rowID][colID] === CellType.TREE
-                      ) {
-                        toast.error("No change", {
-                          position: "bottom-center",
-                        });
-                        return;
-                      }
+                        if (
+                          newCellType === CellType.GROWINGTREE &&
+                          grid[rowID][colID] === CellType.TREE
+                        ) {
+                          toast.error("No change", {
+                            position: "bottom-center",
+                          });
+                          return;
+                        }
 
-                      if (originalGrid[rowID][colID] !== CellType.DEFAULT && grid[rowID][colID] !== CellType.DEFAULT && newCellType !== CellType.DEFAULT) {
-                        toast.error("Empty the cell first", {
-                          position: "bottom-center",
-                        })
-                        return
-                      }
+                        if (originalGrid[rowID][colID] !== CellType.DEFAULT && grid[rowID][colID] !== CellType.DEFAULT && newCellType !== CellType.DEFAULT) {
+                          toast.error("Empty the cell first", {
+                            position: "bottom-center",
+                          })
+                          return
+                        }
 
-                      if (originalGrid[rowID][colID] !== CellType.DEFAULT && originalGrid[rowID][colID] !== CellType.TREE && newCellType !== CellType.DEFAULT && newCellType !== originalGrid[rowID][colID]) {
-                        toast.error("You can only perform one action per cell this round", {
-                          position: "bottom-center",
-                        })
-                        return
-                      }
+                        if (originalGrid[rowID][colID] !== CellType.DEFAULT && originalGrid[rowID][colID] !== CellType.TREE && newCellType !== CellType.DEFAULT && newCellType !== originalGrid[rowID][colID]) {
+                          toast.error("You can only perform one action per cell this round", {
+                            position: "bottom-center",
+                          })
+                          return
+                        }
 
-                      if (originalGrid[rowID][colID] === CellType.TREE && newCellType !== CellType.DEFAULT && newCellType !== CellType.GROWINGTREE) {
-                        toast.error("You can only perform one action per cell this round", {
-                          position: "bottom-center",
-                        })
-                        return
-                      }
+                        if (originalGrid[rowID][colID] === CellType.TREE && newCellType !== CellType.DEFAULT && newCellType !== CellType.GROWINGTREE) {
+                          toast.error("You can only perform one action per cell this round", {
+                            position: "bottom-center",
+                          })
+                          return
+                        }
 
-                      const newActions = actions.filter(
-                        (action) => action[0] !== rowID || action[1] !== colID
-                      );
+                        const newActions = actions.filter(
+                          (action) => action[0] !== rowID || action[1] !== colID
+                        );
 
-                      if (
-                        actions.length === newActions.length &&
-                        actions.length >= getActionsPerRound()
-                      ) {
-                        toast.error("No more action this round", {
-                          position: "bottom-center",
-                        });
-                        return;
-                      }
+                        if (
+                          actions.length === newActions.length &&
+                          actions.length >= getActionsPerRound()
+                        ) {
+                          toast.error("No more action this round", {
+                            position: "bottom-center",
+                          });
+                          return;
+                        }
 
-                      if (
-                        actions.length > newActions.length &&
-                        (newCellType === originalGrid[rowID][colID] ||
-                          (newCellType === CellType.GROWINGTREE &&
-                            originalGrid[rowID][colID] === CellType.TREE))
-                      ) {
-                        setActions(newActions);
+                        if (
+                          actions.length > newActions.length &&
+                          (newCellType === originalGrid[rowID][colID] ||
+                            (newCellType === CellType.GROWINGTREE &&
+                              originalGrid[rowID][colID] === CellType.TREE))
+                        ) {
+                          setActions(newActions);
+                          changeCellType(rowID, colID, newCellType);
+                          return;
+                        }
+
+                        setActions([
+                          ...newActions,
+                          [rowID, colID, grid[rowID][colID]],
+                        ]);
                         changeCellType(rowID, colID, newCellType);
-                        return;
+                      }}
+                      disabled={
+                        (isRotated && COLUMN_LENGTH - columnIndex === 0) ||
+                        (!isRotated && columnIndex === 0)
                       }
-
-                      setActions([
-                        ...newActions,
-                        [rowID, colID, grid[rowID][colID]],
-                      ]);
-                      changeCellType(rowID, colID, newCellType);
-                    }}
-                    disabled={
-                      (isRotated && COLUMN_LENGTH - columnIndex === 0) ||
-                      (!isRotated && columnIndex === 0)
-                    }
-                  />
-                </td>
-              ))}
-            </tr>
-          ))}
-          <tr className="border border-transparent">
-            <th colSpan={COLUMN_LENGTH + 1}>{`Budget: ${budget}$`}</th>
-          </tr>
-          <tr className="border border-transparent">
-            <th colSpan={COLUMN_LENGTH + 1}>
-              {`Actions Left: ${getActionsPerRound() - actions.length}`}
-            </th>
-          </tr>
-          <tr className="border border-transparent">
-            <th colSpan={COLUMN_LENGTH + 1}>{`Profit: +${calculateProfit(
-              grid
-            )}$`}</th>
-          </tr>
-          <tr className="border border-transparent">
-            <th
-              colSpan={COLUMN_LENGTH + 1}
-            >{`Sediment: +${getNewSediment()}`}</th>
-          </tr>
-          <tr className="border border-transparent">
-            <th
-              colSpan={COLUMN_LENGTH + 1}
-            >{`Subsidence: +${getNewSubsidence()}`}</th>
-          </tr>
-          {/* <tr className="border border-transparent">
-            <th colSpan={COLUMN_LENGTH + 1}>
-              <button
-                className="btn"
-                onClick={() => {
-                  if (actions.length === 0) {
-                    return;
-                  }
-                  const action = actions.pop();
-                  changeCellType(action[0], action[1], action[2]);
-                }}
-              >
-                UNDO ACTION
-              </button>
-            </th>
-          </tr> */}
-        </tbody>
-      </table>
-      {!isRotated && (
-        <ActionBar
-          selectedType={selectedType}
-          setSelectedType={setSelectedType}
-          role={role}
-          undo={() => {
-            if (actions.length === 0) {
-              return;
-            }
-            const action = actions.pop();
-            changeCellType(action[0], action[1], action[2]);
-          }}
-        />
-      )}
-
-      {/* <table className="table-auto border opacity-50">
-        <thead>
-          <tr><th colSpan={COLUMN_LENGTH + 1} className="font-bold bg-yellow-300 border-4 border-black">OPERATION MAP</th></tr>
-        </thead>
-        <thead>
-          <tr>
-            {Array.from({ length: COLUMN_LENGTH + 1 }, (_, index) => (
-              <th
-                key={isRotated ? COLUMN_LENGTH - index : index}
-                className="border-4 border-black w-10 h-10 bg-gray-500"
-              >
-                {isRotated ? (COLUMN_LENGTH - index) : (index)}
-              </th>
+                    />
+                  </td>
+                ))}
+              </tr>
             ))}
-          </tr>
-        </thead>
-        <tbody>
-          {Array.from({ length: ROW_LENGTH }, (_, rowIndex) => (
-            <tr key={rowIndex}>
-              {Array.from({ length: COLUMN_LENGTH + 1 }, (_, columnIndex) => (
-                <td
-                  key={isRotated ? (COLUMN_LENGTH - columnIndex) : (columnIndex)}
-                  className="border border-4 border-black w-10 h-10"
-                >
-                  <Cell
-                    cellType={operableGrid[rowIndex][isRotated ? COLUMN_LENGTH - columnIndex : columnIndex]}
-                    onClick={() => {
-                      console.log("HEHE")
-                    }}
-                    disabled={true}
-                  />
-                </td>
-              ))}
+            <tr className="border border-transparent">
+              <th colSpan={COLUMN_LENGTH + 1}>{`Budget: ${budget}$`}</th>
             </tr>
-          ))}
-        </tbody>
-      </table> */}
-    </div>
-  );
+            <tr className="border border-transparent">
+              <th colSpan={COLUMN_LENGTH + 1}>
+                {`Actions Left: ${getActionsPerRound() - actions.length}`}
+              </th>
+            </tr>
+            <tr className="border border-transparent">
+              <th colSpan={COLUMN_LENGTH + 1}>{`Profit: +${calculateProfit(
+                grid
+              )}$`}</th>
+            </tr>
+            <tr className="border border-transparent">
+              <th
+                colSpan={COLUMN_LENGTH + 1}
+              >{`Sediment: +${getNewSediment()}`}</th>
+            </tr>
+            <tr className="border border-transparent">
+              <th
+                colSpan={COLUMN_LENGTH + 1}
+              >{`Subsidence: +${getNewSubsidence()}`}</th>
+            </tr>
+          </tbody>
+        </table>
+        {!isRotated && (
+          <ActionBar
+            selectedType={selectedType}
+            setSelectedType={setSelectedType}
+            role={role}
+            undo={() => {
+              if (actions.length === 0) {
+                return;
+              }
+              const action = actions.pop();
+              changeCellType(action[0], action[1], action[2]);
+            }}
+          />
+        )}
+      </div>)
+      }</>);
 };
 
 export default Table;
