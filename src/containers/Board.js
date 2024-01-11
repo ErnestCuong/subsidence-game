@@ -9,6 +9,12 @@ const DREDGE_EFFECT = 10;
 const DREDGE_COST = 10;
 const DREDGE_PER_ROUND = 1;
 
+export const PlayerType = {
+  RESIDENTS: 'residents',
+  INDUSTRIALISTS: 'industrialists',
+  MODERATOR: 'moderator',
+};
+
 const Board = () => {
   const [resetFlag, setResetFlag] = useState(0);
   const [nextFlag, setNextFlag] = useState(0);
@@ -36,7 +42,7 @@ const Board = () => {
       setGovBudget(res.govBudget)
     }
     fetchData()
-  },[])
+  }, [])
 
   useEffect(() => {
     if (sediment === -1 && subsidence === -1 && govBudget === -1) {
@@ -150,59 +156,71 @@ const Board = () => {
     setGovBudget(govBudget - DREDGE_COST);
   };
 
-  return (
-    <div className="flex flex-row items-start mx-10 mt-10 gap-8">
-      <div className="flex flex-col gap-8 items-center justify-center w-64">
-        {/* <div className="flex gap-20 items-center justify-center w-full"> */}
-        <p className="font-bold text-2xl">GAME STATS</p>
-        <p className="font-semibold">{`Sediment Level: ${sediment}`}</p>
-        <p className="font-semibold">{`Subsidence Level: ${subsidence}`}</p>
-        <p className="font-semibold">{`Government Budget: $${govBudget}`}</p>
-        {/* </div> */}
-        {/* <div className="flex gap-20 items-center justify-center w-full mt-8"> */}
-        <button className="btn bg-red-300 w-full" onClick={restart}>
-          Reset Game
-        </button>
-        <button className="btn bg-green-300 w-full" onClick={next}>
-          Next Round
-        </button>
-        <button
-          className="btn bg-yellow-300 w-full"
-          onClick={dredge}
-          disabled={govBudget < DREDGE_COST || remainingDredges < 1}
-        >
-          Dredge
-        </button>
-        {/* </div> */}
-      </div>
+  const [player, setPlayer] = useState('');
 
-      <div className="flex flex-row flex-shrink-0 justify-center">
-        <Table
-          id="resident"
-          isRotated={true}
-          title="Residential Area"
-          role={Role.RESIDENTS}
-          resetFlag={resetFlag}
-          nextFlag={nextFlag}
-          flood={flood}
-          addSediment={setSediment1}
-          increaseSubsidence={setSubsidence1}
-          payTax={setTax1}
-        />
-        <Table
-          id="corporate"
-          isRotated={false}
-          title="Industrial Area"
-          role={Role.COMPANIES}
-          resetFlag={resetFlag}
-          nextFlag={nextFlag}
-          flood={flood}
-          addSediment={setSediment2}
-          increaseSubsidence={setSubsidence2}
-          payTax={setTax2}
-        />
+  return (
+    <div className="flex flex-col">
+      <div className="w-full">
+        {player.length === 0 && Object.entries(PlayerType).map(([key, value]) => <button key={key} className="rounded-md px-8 mx-8 bg-red-200 text-lg font-bold" onClick={() => setPlayer(value)}>{key}</button>)}
+        {player.length > 0 && <p className="text-lg font-bold">{`Current Role: ${player}`}</p>}
       </div>
-      <Toaster />
+      <div className="flex flex-row items-start mx-10 mt-10 gap-8">
+
+
+        <div className={`flex flex-col gap-8 items-center justify-center w-64 ${player === PlayerType.MODERATOR ? '' : 'pointer-events-none opacity-40'}`}>
+          {/* <div className="flex gap-20 items-center justify-center w-full"> */}
+          <p className="font-bold text-2xl">GAME STATS</p>
+          <p className="font-semibold">{`Sediment Level: ${sediment}`}</p>
+          <p className="font-semibold">{`Subsidence Level: ${subsidence}`}</p>
+          <p className="font-semibold">{`Government Budget: $${govBudget}`}</p>
+          {/* </div> */}
+          {/* <div className="flex gap-20 items-center justify-center w-full mt-8"> */}
+          <button className="btn bg-red-300 w-full" onClick={restart}>
+            Reset Game
+          </button>
+          <button className="btn bg-green-300 w-full" onClick={next}>
+            Next Round
+          </button>
+          <button
+            className="btn bg-yellow-300 w-full"
+            onClick={dredge}
+            disabled={govBudget < DREDGE_COST || remainingDredges < 1}
+          >
+            Dredge
+          </button>
+          {/* </div> */}
+        </div>
+
+        <div className="flex flex-row flex-shrink-0 justify-center">
+          <Table
+            id="resident"
+            isRotated={true}
+            title="Residential Area"
+            role={Role.RESIDENTS}
+            resetFlag={resetFlag}
+            nextFlag={nextFlag}
+            flood={flood}
+            addSediment={setSediment1}
+            increaseSubsidence={setSubsidence1}
+            payTax={setTax1}
+            player={player}
+          />
+          <Table
+            id="corporate"
+            isRotated={false}
+            title="Industrial Area"
+            role={Role.COMPANIES}
+            resetFlag={resetFlag}
+            nextFlag={nextFlag}
+            flood={flood}
+            addSediment={setSediment2}
+            increaseSubsidence={setSubsidence2}
+            payTax={setTax2}
+            player={player}
+          />
+        </div>
+        <Toaster />
+      </div>
     </div>
   );
 };
