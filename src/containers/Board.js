@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Table, { Role } from "./Table";
 import { Toaster, toast } from "react-hot-toast";
+import { getGameState, updateGameState } from "../apis/gameStateAPI";
 
 const RIVER_DEPTH = 20;
 const MAX_RAIN = 25;
@@ -12,15 +13,11 @@ const Board = () => {
   const [resetFlag, setResetFlag] = useState(0);
   const [nextFlag, setNextFlag] = useState(0);
   const [flood, setFlood] = useState({ round: 0, level: 0 });
-  const [sediment, setSediment] = useState(
-    JSON.parse(localStorage.getItem("sediment"))?.sediment ?? 0
-  );
+  const [sediment, setSediment] = useState(-1);
   const [sediment1, setSediment1] = useState(-1);
   const [sediment2, setSediment2] = useState(-1);
 
-  const [subsidence, setSubsidence] = useState(
-    JSON.parse(localStorage.getItem("subsidence"))?.subsidence ?? 0
-  );
+  const [subsidence, setSubsidence] = useState(-1);
   const [subsidence1, setSubsidence1] = useState(-1);
   const [subsidence2, setSubsidence2] = useState(-1);
   const [floodProb, setFloodProb] = useState(0);
@@ -29,24 +26,28 @@ const Board = () => {
   const [tax2, setTax2] = useState(0);
 
   const [remainingDredges, setRemainingDredges] = useState(DREDGE_PER_ROUND);
-  const [govBudget, setGovBudget] = useState(
-    JSON.parse(localStorage.getItem("govBudget"))?.govBudget ?? 0
-  );
+  const [govBudget, setGovBudget] = useState(-1);
 
   useEffect(() => {
-    localStorage.setItem("sediment", JSON.stringify({ sediment: sediment }));
-  }, [sediment]);
+    const fetchData = async () => {
+      const res = await getGameState('board')
+      setSediment(res.sediment)
+      setSubsidence(res.subsidence)
+      setGovBudget(res.govBudget)
+    }
+    fetchData()
+  },[])
 
   useEffect(() => {
-    localStorage.setItem(
-      "subsidence",
-      JSON.stringify({ subsidence: subsidence })
-    );
-  }, [subsidence]);
-
-  useEffect(() => {
-    localStorage.setItem("govBudget", JSON.stringify({ govBudget: govBudget }));
-  }, [govBudget]);
+    if (sediment === -1 && subsidence === -1 && govBudget === -1) {
+      return
+    }
+    updateGameState('board', {
+      sediment: sediment,
+      subsidence: subsidence,
+      govBudget: govBudget
+    });
+  }, [sediment, subsidence, govBudget]);
 
   const addSediment = (value) => {
     if (sediment + value > RIVER_DEPTH * 30) {

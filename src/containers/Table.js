@@ -242,10 +242,12 @@ const Table = ({
       const res = await getGameState(role)
       if (res.length === 0) {
         setGrid(getNewGrid())
+        setOriginalGrid(getNewGrid())
         updateGameState(role, getNewGrid())
         return
       }
       setGrid(res)
+      setOriginalGrid(res)
     }
     fetchData()
   }, [])
