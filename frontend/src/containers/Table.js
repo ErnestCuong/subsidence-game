@@ -237,6 +237,20 @@ const checkEqualGrids = (grid1, grid2) => {
   return true
 }
 
+const checkEqualActions = (actions1, actions2) => {
+  if (actions1.length !== actions2.length) {
+    return false
+  }
+
+  for (let i = 0; i < actions1.length; i++) {
+    if (actions1[i][0] !== actions2[i][0] || actions1[i][1] !== actions2[i][1] || actions1[i][2] !== actions2[i][2]) {
+      return false
+    }
+  }
+
+  return true
+}
+
 const Table = ({
   id,
   isRotated,
@@ -282,7 +296,23 @@ const Table = ({
       selectedType: selectedType
     }
     updateGameState(role, data)
-  }, [grid, originalGrid, operableGrid, budget, actions, selectedType])
+  }, [
+    grid,
+    originalGrid,
+    operableGrid,
+    budget,
+    actions,
+    selectedType
+  ])
+
+  // useEffect(() => console.log('WHY IS THIS HAPPENING'), [
+  //   grid,
+  //   // originalGrid,
+  //   // operableGrid,
+  //   // budget,
+  //   // actions,
+  //   // selectedType
+  // ])
 
   const fetchData = async () => {
     const res = await getGameState(role)
@@ -290,21 +320,36 @@ const Table = ({
       resetGameState()
       return
     }
-    setGrid(res.grid)
+    setGrid((prev) => {
+      if (!checkEqualGrids(prev, res.grid)) {
+        return res.grid
+      }
+      return prev
+    })
     setOriginalGrid((prev) => {
       if (!checkEqualGrids(prev, res.originalGrid)) {
         return res.originalGrid
       }
       return prev
     })
-    setOperableGrid(res.operableGrid)
+    setOperableGrid((prev) => {
+      if (!checkEqualGrids(prev, res.operableGrid)) {
+        return res.operableGrid
+      }
+      return prev
+    })
     setBudget((prev) => {
       if (prev === res.budget) {
         return prev
       }
       return res.budget
     })
-    setActions(res.actions)
+    setActions((prev) => {
+      if (!checkEqualActions(prev, res.actions)) {
+        return res.actions
+      }
+      return prev
+    })
     setSelectedType(res.selectedType)
   }
 
@@ -326,7 +371,7 @@ const Table = ({
     if (!pauseFetching) {
       interval = setInterval(() => fetchData(), 1000)
     }
-    
+
     return () => clearInterval(interval);
   }, [player, pauseFetching])
 
@@ -334,10 +379,8 @@ const Table = ({
     setPauseFetching(true)
     const checkUpdateFinish = async () => {
       let res1 = await getGameState('board')
-      console.log('FLAG', res1.nextFlag, nextFlag)
-      while (res1.nextFlag < nextFlag) {
+      while (res1.nextFlag < nextFlag && res1.resetFlag < resetFlag) {
         res1 = await getGameState('board')
-        console.log('WAIIIIIT UPDATE FINISH')
       }
       setPauseFetching(false)
     }
@@ -354,19 +397,17 @@ const Table = ({
       }
 
       let res1 = await getGameState('board')
-      console.log('FLAG', res1.nextFlag, nextFlag)
-      while (res1.nextFlag < nextFlag) {
+      while (res1.nextFlag < nextFlag && res1.resetFlag < resetFlag) {
         res1 = await getGameState('board')
-        console.log('WAIIIIIT FETCH')
       }
 
       const res = await getGameState(role)
-      console.log('---------------------')
-      console.log(role)
-      console.log('GRID', grid)
-      console.log('RES', res.grid)
-      console.log('---------------------')
-      setGrid(res.grid)
+      setGrid((prev) => {
+        if (!checkEqualGrids(prev, res.grid)) {
+          return res.grid
+        }
+        return prev
+      })
       setOriginalGrid((prev) => {
         if (!checkEqualGrids(prev, res.originalGrid)) {
           return res.originalGrid
@@ -374,14 +415,24 @@ const Table = ({
         return prev
       })
 
-      setOperableGrid(res.operableGrid)
+      setOperableGrid((prev) => {
+        if (!checkEqualGrids(prev, res.operableGrid)) {
+          return res.operableGrid
+        }
+        return prev
+      })
       setBudget((prev) => {
         if (prev === res.budget) {
           return prev
         }
         return res.budget
       })
-      setActions(res.actions)
+      setActions((prev) => {
+        if (!checkEqualActions(prev, res.actions)) {
+          return res.actions
+        }
+        return prev
+      })
       setSelectedType(res.selectedType)
     }
     fetchData()
@@ -513,7 +564,7 @@ const Table = ({
     }
     const updatedGrid = [...grid.map((row) => [...row])];
     let cost = 0
-    if (player !== PlayerType.MODERATOR) {
+    if (player !== role) {
       return
     }
 
@@ -570,16 +621,20 @@ const Table = ({
     if (nextFlag === 0) {
       return;
     }
-    if (player !== PlayerType.MODERATOR) {
-      return
-    }
-    addSediment(getNewSediment());
     const profit = calculateProfit(grid);
     const tax = Math.floor(profit * TAX_RATE);
-    setBudget((prev) => { return prev + profit - tax });
-    payTax(tax);
-    increaseSubsidence(getNewSubsidence());
-    setActions([]);
+    console.log(role, profit, tax)
+    if (player === PlayerType.MODERATOR) {
+      addSediment(getNewSediment());
+      payTax(tax);
+      increaseSubsidence(getNewSubsidence());
+    }
+
+    if (player === role) {
+      setActions([]);
+      setBudget((prev) => { return prev + profit - tax });
+    }
+
   }, [nextFlag]);
 
 
