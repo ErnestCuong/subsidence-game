@@ -1,6 +1,4 @@
-import { PlayerType } from "../containers/Board"
-
-const baseUrl = 'http://localhost:5000'
+const baseUrl = 'https://backend-g5qibfavfa-uc.a.run.app'
 
 async function getGameState(role) {
   const url = `${baseUrl}/api/${role}/`
@@ -12,9 +10,6 @@ async function getGameState(role) {
 }
 
 function updateGameState(role, data) {
-  if (role === 'industrialists') {
-    console.log('CHECK THIS OUT', data.budget)
-  }
   const jsonData = JSON.stringify(data)
   return fetch(`${baseUrl}/api/${role}/`, {
     method: 'POST',

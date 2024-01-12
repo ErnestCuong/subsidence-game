@@ -258,43 +258,19 @@ const Table = ({
   const [actions, setActions] = useState([]);
   const [selectedType, setSelectedType] = useState(CellType.DEFAULT);
 
-  const resetState = () => {
-    setHydration(false)
-    setGrid(getNewGrid())
-    setOriginalGrid(getNewGrid())
-    setBudget(0)
-    setActions([])
-    setSelectedType(CellType.DEFAULT)
-  }
+  // const resetState = () => {
+  //   setHydration(false)
+  //   setGrid(getNewGrid())
+  //   setOriginalGrid(getNewGrid())
+  //   setBudget(0)
+  //   setActions([])
+  //   setSelectedType(CellType.DEFAULT)
+  // }
 
-  // useEffect(() => {
-  //   const fetchData = async () => {
-  //     const res = await getGameState(role)
-  //     if (Object.keys(res).length === 0) {
-  //       setHydration(true)
-  //       updateGameState(role, {
-  //         grid: grid,
-  //         originalGrid: originalGrid,
-  //         operableGrid: operableGrid,
-  //         budget: budget,
-  //         actions: actions,
-  //         selectedType: selectedType
-  //       })
-  //       return
-  //     }
-  //     setHydration(true)
-  //     setGrid(res.grid)
-  //     setOriginalGrid(res.originalGrid)
-  //     setOperableGrid(res.operableGrid)
-  //     setBudget(res.budget)
-  //     setActions(res.actions)
-  //     setSelectedType(res.selectedType)
-  //   }
-  //   fetchData()
-  // }, [])
+  const [pauseFetching, setPauseFetching] = useState(false)
 
   useEffect(() => {
-    if (!hydration || (role !== player && player !== PlayerType.MODERATOR)) {
+    if (!hydration || (role !== player)) {
       return
     }
     const data = {
@@ -308,40 +284,108 @@ const Table = ({
     updateGameState(role, data)
   }, [grid, originalGrid, operableGrid, budget, actions, selectedType])
 
+  const fetchData = async () => {
+    const res = await getGameState(role)
+    if (Object.keys(res).length === 0) {
+      resetGameState()
+      return
+    }
+    setGrid(res.grid)
+    setOriginalGrid((prev) => {
+      if (!checkEqualGrids(prev, res.originalGrid)) {
+        return res.originalGrid
+      }
+      return prev
+    })
+    setOperableGrid(res.operableGrid)
+    setBudget((prev) => {
+      if (prev === res.budget) {
+        return prev
+      }
+      return res.budget
+    })
+    setActions(res.actions)
+    setSelectedType(res.selectedType)
+  }
+
   useEffect(() => {
+    if (player === '') {
+      return
+    }
+
     if (!hydration) {
       setHydration(true)
-    }
-    const interval = setInterval(() => {
-      const fetchData = async () => {
-        const res = await getGameState(role)
-        if (Object.keys(res).length === 0) {
-          resetGameState()
-          return
-        }
-        setGrid(res.grid)
-        setOriginalGrid((prev) => {
-          if (!checkEqualGrids(prev, res.originalGrid)) {
-            return res.originalGrid
-          }
-          return prev
-        })
-
-        setOperableGrid(res.operableGrid)
-        setBudget((prev) => {
-          if (prev === res.budget) {
-            return prev
-          }
-          console.log('WEIRD', role, prev, res.budget)
-          return res.budget
-        })
-        setActions(res.actions)
-        setSelectedType(res.selectedType)
-      }
       fetchData()
-    }, 1000)
+    }
+
+    if (player === role) {
+      return
+    }
+
+    let interval;
+    if (!pauseFetching) {
+      interval = setInterval(() => fetchData(), 1000)
+    }
+    
     return () => clearInterval(interval);
-  }, [])
+  }, [player, pauseFetching])
+
+  useEffect(() => {
+    setPauseFetching(true)
+    const checkUpdateFinish = async () => {
+      let res1 = await getGameState('board')
+      console.log('FLAG', res1.nextFlag, nextFlag)
+      while (res1.nextFlag < nextFlag) {
+        res1 = await getGameState('board')
+        console.log('WAIIIIIT UPDATE FINISH')
+      }
+      setPauseFetching(false)
+    }
+    checkUpdateFinish()
+
+    if (player !== role) {
+      return
+    }
+    const fetchData = async () => {
+      const res0 = await getGameState(role)
+      if (Object.keys(res0).length === 0) {
+        resetGameState()
+        return
+      }
+
+      let res1 = await getGameState('board')
+      console.log('FLAG', res1.nextFlag, nextFlag)
+      while (res1.nextFlag < nextFlag) {
+        res1 = await getGameState('board')
+        console.log('WAIIIIIT FETCH')
+      }
+
+      const res = await getGameState(role)
+      console.log('---------------------')
+      console.log(role)
+      console.log('GRID', grid)
+      console.log('RES', res.grid)
+      console.log('---------------------')
+      setGrid(res.grid)
+      setOriginalGrid((prev) => {
+        if (!checkEqualGrids(prev, res.originalGrid)) {
+          return res.originalGrid
+        }
+        return prev
+      })
+
+      setOperableGrid(res.operableGrid)
+      setBudget((prev) => {
+        if (prev === res.budget) {
+          return prev
+        }
+        return res.budget
+      })
+      setActions(res.actions)
+      setSelectedType(res.selectedType)
+    }
+    fetchData()
+  }, [nextFlag, resetFlag])
 
   const changeCellType = (rowIndex, columnIndex, newCellType) => {
     if (!grid) {
@@ -368,9 +412,6 @@ const Table = ({
   const getCellType = (rowIndex, columnIndex) => {
     return grid[rowIndex][columnIndex];
   };
-
-  // const [activeCellID, setActiveCellID] = useState([0, 0]);
-  // const [modalOpen, setModalOpen] = useState(false);
 
   const getNewSubsidence = () =>
     actions.reduce((prev, curr) => {
@@ -471,6 +512,7 @@ const Table = ({
       return;
     }
     const updatedGrid = [...grid.map((row) => [...row])];
+    let cost = 0
     if (player !== PlayerType.MODERATOR) {
       return
     }
@@ -503,10 +545,25 @@ const Table = ({
         ) {
           continue;
         }
+
+        if (updatedGrid[rowIndex][columnIndex] === CellType.HOME) {
+          cost = cost + 2
+        }
+
+        if (updatedGrid[rowIndex][columnIndex] === CellType.FACTORY) {
+          cost = cost + 4
+        }
+
         updatedGrid[rowIndex][columnIndex] = CellType.DEFAULT;
       }
     }
     growTrees(updatedGrid);
+    setBudget((prev) => {
+      if (prev - cost < 0) {
+        return 0
+      }
+      return prev - cost
+    })
   }, [flood]);
 
   useEffect(() => {
@@ -519,7 +576,7 @@ const Table = ({
     addSediment(getNewSediment());
     const profit = calculateProfit(grid);
     const tax = Math.floor(profit * TAX_RATE);
-    setBudget((prev) => { console.log(role, prev); return prev + profit - tax });
+    setBudget((prev) => { return prev + profit - tax });
     payTax(tax);
     increaseSubsidence(getNewSubsidence());
     setActions([]);
