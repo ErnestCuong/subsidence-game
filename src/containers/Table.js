@@ -10,6 +10,7 @@ import Tree from "../components/Tree";
 import Trash from "../components/Trash";
 import GrowingTree from "../components/GrowingTree";
 import { getGameState, updateGameState } from "../apis/gameStateAPI";
+import { PlayerType } from "./Board";
 
 const ROW_LENGTH = 10;
 const COLUMN_LENGTH = 10;
@@ -220,6 +221,22 @@ const ActionBar = ({ selectedType, setSelectedType, role, undo }) => {
   );
 };
 
+const checkEqualGrids = (grid1, grid2) => {
+  if (grid1.length !== grid2.length || grid1[0].length !== grid2[0].length) {
+    return false
+  }
+
+  for (let i = 0; i < grid1.length; i++) {
+    for (let j = 0; j < grid1[0].length; j++) {
+      if (grid1[i][j] !== grid2[i][j]) {
+        return false
+      }
+    }
+  }
+
+  return true
+}
+
 const Table = ({
   id,
   isRotated,
@@ -233,34 +250,93 @@ const Table = ({
   payTax,
   player
 }) => {
-  const [grid, setGrid] = useState(
-    // JSON.parse(localStorage.getItem(id))?.grid ?? getNewGrid()
-    undefined
-  );
-
-  useEffect(() => {
-    const fetchData = async () => {
-      const res = await getGameState(role)
-      if (res.length === 0) {
-        setGrid(getNewGrid())
-        setOriginalGrid(getNewGrid())
-        updateGameState(role, getNewGrid())
-        return
-      }
-      setGrid(res)
-      setOriginalGrid(res)
-    }
-    fetchData()
-  }, [])
-
-
-  const [originalGrid, setOriginalGrid] = useState(grid ?? getNewGrid());
-  const [budget, setBudget] = useState(
-    // JSON.parse(localStorage.getItem(id))?.budget ?? 0
-    0
-  );
+  const [hydration, setHydration] = useState(false)
+  const [grid, setGrid] = useState(getNewGrid());
+  const [originalGrid, setOriginalGrid] = useState(getNewGrid());
+  const [operableGrid, setOperableGrid] = useState(getNewGrid());
+  const [budget, setBudget] = useState(0);
   const [actions, setActions] = useState([]);
   const [selectedType, setSelectedType] = useState(CellType.DEFAULT);
+
+  useEffect(() => console.log('ORIGINAL', originalGrid), [originalGrid])
+  // useEffect(() => console.log('RESET', resetFlag), [resetFlag])
+
+  // useEffect(() => {
+  //   const fetchData = async () => {
+  //     const res = await getGameState(role)
+  //     if (Object.keys(res).length === 0) {
+  //       setHydration(true)
+  //       updateGameState(role, {
+  //         grid: grid,
+  //         originalGrid: originalGrid,
+  //         operableGrid: operableGrid,
+  //         budget: budget,
+  //         actions: actions,
+  //         selectedType: selectedType
+  //       })
+  //       return
+  //     }
+  //     setHydration(true)
+  //     setGrid(res.grid)
+  //     setOriginalGrid(res.originalGrid)
+  //     setOperableGrid(res.operableGrid)
+  //     setBudget(res.budget)
+  //     setActions(res.actions)
+  //     setSelectedType(res.selectedType)
+  //   }
+  //   fetchData()
+  // }, [])
+
+  useEffect(() => {
+    if (!hydration || (role !== player && player !== PlayerType.MODERATOR)) {
+      return
+    }
+    const data = {
+      grid: grid,
+      originalGrid: originalGrid,
+      operableGrid: operableGrid,
+      budget: budget,
+      actions: actions,
+      selectedType: selectedType
+    }
+    updateGameState(role, data)
+  }, [grid, originalGrid, operableGrid, budget, actions, selectedType])
+
+  useEffect(() => {
+    if (!hydration) {
+      setHydration(true)
+    }
+    const interval = setInterval(() => {
+      const fetchData = async () => {
+        const res = await getGameState(role)
+        if (Object.keys(res).length === 0) {
+          updateGameState(role, {
+            grid: grid,
+            originalGrid: originalGrid,
+            operableGrid: operableGrid,
+            budget: budget,
+            actions: actions,
+            selectedType: selectedType
+          })
+          return
+        }
+        setGrid(res.grid)
+        setOriginalGrid((prev) => {
+          if (!checkEqualGrids(prev, res.originalGrid)) {
+            return res.originalGrid
+          } 
+          return prev
+        })
+
+        setOperableGrid(res.operableGrid)
+        setBudget(res.budget)
+        setActions(res.actions)
+        setSelectedType(res.selectedType)
+      }
+      fetchData()
+    }, 1000)
+    return () => clearInterval(interval);
+  }, [])
 
   const changeCellType = (rowIndex, columnIndex, newCellType) => {
     if (!grid) {
@@ -281,7 +357,7 @@ const Table = ({
 
     // Set the state with the updated copy
     setGrid(updatedGrid);
-    updateGameState(role, updatedGrid)
+    // updateGameState(role, updatedGrid)
   };
 
   const getCellType = (rowIndex, columnIndex) => {
@@ -360,9 +436,14 @@ const Table = ({
         }
       }
     }
-    setGrid(updatedGrid);
-    updateGameState(role, updatedGrid)
-    setOriginalGrid(updatedGrid)
+    if (!checkEqualGrids(grid, updatedGrid)) {
+      setGrid(updatedGrid);
+    }
+    // updateGameState(role, updatedGrid)
+    if (!checkEqualGrids(originalGrid, updatedGrid)) {
+      console.log('41234132421342134324321')
+      setOriginalGrid(updatedGrid)
+    }
   };
 
   // useEffect(() => {
@@ -374,9 +455,11 @@ const Table = ({
       return;
     }
     setGrid(getNewGrid());
-    updateGameState(role, getNewGrid())
+    // updateGameState(role, getNewGrid())
+    console.log('asdf798da7s8df7asdf98798714239r8sd')
     setOriginalGrid(getNewGrid());
     setBudget(0);
+
     setActions([]);
   }, [resetFlag]);
 
@@ -417,6 +500,7 @@ const Table = ({
         updatedGrid[rowIndex][columnIndex] = CellType.DEFAULT;
       }
     }
+    console.log('FLOOD', flood)
     growTrees(updatedGrid);
   }, [flood]);
 
@@ -433,8 +517,6 @@ const Table = ({
     increaseSubsidence(getNewSubsidence());
     setActions([]);
   }, [nextFlag]);
-
-  const [operableGrid, setOperableGrid] = useState(undefined);
 
   useEffect(() => setOperableGrid(getOperableGrid(grid)), [grid]);
 

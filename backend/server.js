@@ -8,12 +8,23 @@ app.use(bodyParser.json());
 app.use(cors());
 
 // Your JSON data storage
-let residents = [];
-let industrialists = []
+let residents = {};
+let industrialists = {};
 let board = {
+  resetFlag: 0,
+  nextFlag: 0,
+  flood: { round: 0, level: 0 },
   sediment: 0,
+  sediment1: 0,
+  sediment2: 0,
   subsidence: 0,
-  govBudget: 0
+  subsidence1: 0,
+  subsidence2: 0,
+  govBudget: 0,
+  floodProb: 0,
+  tax1: 0,
+  tax2: 0,
+  remainingDredges: 1
 }
 
 // Endpoint to get JSON data
