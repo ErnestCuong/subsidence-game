@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import Table, { Role } from "./Table";
 import { Toaster, toast } from "react-hot-toast";
-import { getGameState, updateGameState } from "../apis/gameStateAPI";
+import { getGameState, updateGameState, resetGameState } from "../apis/gameStateAPI";
 
 const RIVER_DEPTH = 20;
 const MAX_RAIN = 25;
@@ -34,6 +34,7 @@ const Board = () => {
 
   const [remainingDredges, setRemainingDredges] = useState(DREDGE_PER_ROUND);
   const [govBudget, setGovBudget] = useState(-1);
+
   const [player, setPlayer] = useState('');
 
   useEffect(() => {
@@ -42,6 +43,11 @@ const Board = () => {
         setHydration(true)
       }
       const fetchData = async () => {
+        // const res0 = await getGameState('residents')
+        // if (Object.keys(res0).length === 0 && player === PlayerType.MODERATOR) {
+          
+        //   return
+        // }
         const res = await getGameState('board')
         setResetFlag(res.resetFlag)
         setNextFlag(res.nextFlag)
@@ -51,7 +57,7 @@ const Board = () => {
           }
           return prev
         })
-        
+
         setSediment(res.sediment)
         setSediment1(res.sediment1)
         setSediment2(res.sediment2)
@@ -69,28 +75,28 @@ const Board = () => {
     return () => clearInterval(interval);
   }, [])
 
-  useEffect(() => console.log('HEY THERE', resetFlag, nextFlag),[
-    resetFlag, 
-    nextFlag,
-    // flood,
-    sediment,
-    sediment1,
-    sediment2,
-    subsidence,
-    subsidence1,
-    subsidence2,
-    govBudget,
-    floodProb,
-    tax1,
-    tax2,
-    remainingDredges
-  ])
+  // useEffect(() => console.log('HEY THERE', resetFlag, nextFlag),[
+  //   resetFlag, 
+  //   nextFlag,
+  //   // flood,
+  //   sediment,
+  //   sediment1,
+  //   sediment2,
+  //   subsidence,
+  //   subsidence1,
+  //   subsidence2,
+  //   govBudget,
+  //   floodProb,
+  //   tax1,
+  //   tax2,
+  //   remainingDredges
+  // ])
 
   useEffect(() => {
     if (!hydration || player !== PlayerType.MODERATOR) {
       return
     }
-    
+
     updateGameState('board', {
       resetFlag: resetFlag,
       nextFlag: nextFlag,
@@ -204,7 +210,7 @@ const Board = () => {
 
   const dredge = () => {
     setRemainingDredges(remainingDredges - 1);
-    setSediment(sediment - DREDGE_EFFECT);
+    setSediment(sediment - DREDGE_EFFECT < 0 ? 0 : sediment - DREDGE_EFFECT);
     setGovBudget(govBudget - DREDGE_COST);
   };
 
@@ -213,6 +219,7 @@ const Board = () => {
       <div className="w-full">
         {player.length === 0 && Object.entries(PlayerType).map(([key, value]) => <button key={key} className="rounded-md px-8 mx-8 bg-red-200 text-lg font-bold" onClick={() => setPlayer(value)}>{key}</button>)}
         {player.length > 0 && <p className="text-lg font-bold">{`Current Role: ${player}`}</p>}
+        {/* {player === PlayerType.MODERATOR && <button onClick={() => resetGameState(player)} className="rounded-md px-8 mx-8 bg-red-200 text-lg font-bold">RESET</button>} */}
       </div>
       <div className="flex flex-row items-start mx-10 mt-10 gap-8">
 
