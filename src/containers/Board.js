@@ -16,6 +16,7 @@ export const PlayerType = {
 };
 
 const Board = () => {
+  const [hydration, setHydration] = useState(false)
   const [resetFlag, setResetFlag] = useState(0);
   const [nextFlag, setNextFlag] = useState(0);
   const [flood, setFlood] = useState({ round: 0, level: 0 });
@@ -33,27 +34,80 @@ const Board = () => {
 
   const [remainingDredges, setRemainingDredges] = useState(DREDGE_PER_ROUND);
   const [govBudget, setGovBudget] = useState(-1);
+  const [player, setPlayer] = useState('');
 
   useEffect(() => {
-    const fetchData = async () => {
-      const res = await getGameState('board')
-      setSediment(res.sediment)
-      setSubsidence(res.subsidence)
-      setGovBudget(res.govBudget)
-    }
-    fetchData()
+    const interval = setInterval(() => {
+      if (!hydration) {
+        setHydration(true)
+      }
+      const fetchData = async () => {
+        const res = await getGameState('board')
+        setResetFlag(res.resetFlag)
+        setNextFlag(res.nextFlag)
+        setFlood((prev) => {
+          if (prev.level !== res.flood.level || prev.round !== res.flood.round) {
+            return res.flood
+          }
+          return prev
+        })
+        
+        setSediment(res.sediment)
+        setSediment1(res.sediment1)
+        setSediment2(res.sediment2)
+        setSubsidence(res.subsidence)
+        setSubsidence1(res.subsidence1)
+        setSubsidence2(res.subsidence2)
+        setGovBudget(res.govBudget)
+        setFloodProb(res.floodProb)
+        setTax1(res.tax1)
+        setTax2(res.tax2)
+        setRemainingDredges(res.remainingDredges)
+      }
+      fetchData()
+    }, 1000)
+    return () => clearInterval(interval);
   }, [])
 
+  useEffect(() => console.log('HEY THERE', resetFlag, nextFlag),[
+    resetFlag, 
+    nextFlag,
+    // flood,
+    sediment,
+    sediment1,
+    sediment2,
+    subsidence,
+    subsidence1,
+    subsidence2,
+    govBudget,
+    floodProb,
+    tax1,
+    tax2,
+    remainingDredges
+  ])
+
   useEffect(() => {
-    if (sediment === -1 && subsidence === -1 && govBudget === -1) {
+    if (!hydration || player !== PlayerType.MODERATOR) {
       return
     }
+    
     updateGameState('board', {
+      resetFlag: resetFlag,
+      nextFlag: nextFlag,
+      flood: flood,
       sediment: sediment,
+      sediment1: sediment1,
+      sediment2: sediment2,
       subsidence: subsidence,
-      govBudget: govBudget
+      subsidence1: subsidence1,
+      subsidence2: subsidence2,
+      govBudget: govBudget,
+      floodProb: floodProb,
+      tax1: tax1,
+      tax2: tax2,
+      remainingDredges: remainingDredges
     });
-  }, [sediment, subsidence, govBudget]);
+  }, [sediment, subsidence, govBudget, tax1, tax2, resetFlag, nextFlag, sediment1, sediment2, subsidence1, subsidence2, floodProb, remainingDredges]);
 
   const addSediment = (value) => {
     if (sediment + value > RIVER_DEPTH * 30) {
@@ -100,8 +154,6 @@ const Board = () => {
   }, [tax1, tax2]);
 
   const restart = () => {
-    localStorage.removeItem("resident");
-    localStorage.removeItem("corporate");
     setResetFlag(resetFlag + 1);
     setNextFlag(0);
     setSediment(0);
@@ -155,8 +207,6 @@ const Board = () => {
     setSediment(sediment - DREDGE_EFFECT);
     setGovBudget(govBudget - DREDGE_COST);
   };
-
-  const [player, setPlayer] = useState('');
 
   return (
     <div className="flex flex-col">

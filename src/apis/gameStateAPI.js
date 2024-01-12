@@ -10,6 +10,9 @@ async function getGameState(role) {
 }
 
 function updateGameState(role, data) {
+  // if (role === 'board') {
+  //   console.log(data)
+  // }
   const jsonData = JSON.stringify(data)
   return fetch(`${baseUrl}/api/${role}/`, {
     method: 'POST',
