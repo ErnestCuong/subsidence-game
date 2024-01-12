@@ -9,7 +9,7 @@ import Road from "../components/Road";
 import Tree from "../components/Tree";
 import Trash from "../components/Trash";
 import GrowingTree from "../components/GrowingTree";
-import { getGameState, updateGameState } from "../apis/gameStateAPI";
+import { getGameState, resetGameState, updateGameState } from "../apis/gameStateAPI";
 import { PlayerType } from "./Board";
 
 const ROW_LENGTH = 10;
@@ -258,8 +258,14 @@ const Table = ({
   const [actions, setActions] = useState([]);
   const [selectedType, setSelectedType] = useState(CellType.DEFAULT);
 
-  useEffect(() => console.log('ORIGINAL', originalGrid), [originalGrid])
-  // useEffect(() => console.log('RESET', resetFlag), [resetFlag])
+  const resetState = () => {
+    setHydration(false)
+    setGrid(getNewGrid())
+    setOriginalGrid(getNewGrid())
+    setBudget(0)
+    setActions([])
+    setSelectedType(CellType.DEFAULT)
+  }
 
   // useEffect(() => {
   //   const fetchData = async () => {
@@ -310,26 +316,25 @@ const Table = ({
       const fetchData = async () => {
         const res = await getGameState(role)
         if (Object.keys(res).length === 0) {
-          updateGameState(role, {
-            grid: grid,
-            originalGrid: originalGrid,
-            operableGrid: operableGrid,
-            budget: budget,
-            actions: actions,
-            selectedType: selectedType
-          })
+          resetGameState()
           return
         }
         setGrid(res.grid)
         setOriginalGrid((prev) => {
           if (!checkEqualGrids(prev, res.originalGrid)) {
             return res.originalGrid
-          } 
+          }
           return prev
         })
 
         setOperableGrid(res.operableGrid)
-        setBudget(res.budget)
+        setBudget((prev) => {
+          if (prev === res.budget) {
+            return prev
+          }
+          console.log('WEIRD', role, prev, res.budget)
+          return res.budget
+        })
         setActions(res.actions)
         setSelectedType(res.selectedType)
       }
@@ -441,7 +446,6 @@ const Table = ({
     }
     // updateGameState(role, updatedGrid)
     if (!checkEqualGrids(originalGrid, updatedGrid)) {
-      console.log('41234132421342134324321')
       setOriginalGrid(updatedGrid)
     }
   };
@@ -456,7 +460,6 @@ const Table = ({
     }
     setGrid(getNewGrid());
     // updateGameState(role, getNewGrid())
-    console.log('asdf798da7s8df7asdf98798714239r8sd')
     setOriginalGrid(getNewGrid());
     setBudget(0);
 
@@ -468,6 +471,9 @@ const Table = ({
       return;
     }
     const updatedGrid = [...grid.map((row) => [...row])];
+    if (player !== PlayerType.MODERATOR) {
+      return
+    }
 
     for (let rowIndex = 0; rowIndex < ROW_LENGTH; rowIndex++) {
       for (let columnIndex = 1; columnIndex < flood.level + 1; columnIndex++) {
@@ -500,7 +506,6 @@ const Table = ({
         updatedGrid[rowIndex][columnIndex] = CellType.DEFAULT;
       }
     }
-    console.log('FLOOD', flood)
     growTrees(updatedGrid);
   }, [flood]);
 
@@ -508,15 +513,18 @@ const Table = ({
     if (nextFlag === 0) {
       return;
     }
-
+    if (player !== PlayerType.MODERATOR) {
+      return
+    }
     addSediment(getNewSediment());
     const profit = calculateProfit(grid);
     const tax = Math.floor(profit * TAX_RATE);
-    setBudget(budget + profit - tax);
+    setBudget((prev) => { console.log(role, prev); return prev + profit - tax });
     payTax(tax);
     increaseSubsidence(getNewSubsidence());
     setActions([]);
   }, [nextFlag]);
+
 
   useEffect(() => setOperableGrid(getOperableGrid(grid)), [grid]);
 
@@ -547,7 +555,7 @@ const Table = ({
 
   return (
     <>
-      {grid && (<div className={`inline-container flex-shrink-0 flex flex-row ${player === role ? '' : 'pointer-events-none opacity-40'}`}>
+      {grid && (<div className={`inline-container flex-shrink-0 flex flex-row ${player === role ? '' : 'pointer-events-none opacity-60'}`}>
         {isRotated && (
           <ActionBar
             selectedType={selectedType}

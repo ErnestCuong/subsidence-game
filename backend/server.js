@@ -40,6 +40,10 @@ app.get('/api/board', (req, res) => {
   res.json(board);
 });
 
+// app.get('/api/reset', (req, res) => {
+//   res.status(200).json('HELLO');
+// });
+
 // Endpoint to add data
 app.post('/api/residents', (req, res) => {
   const newData = req.body;
@@ -58,6 +62,29 @@ app.post('/api/board', (req, res) => {
   board = newData;
   res.json({ message: 'Data added successfully', data: newData });
 });
+
+// app.post('/api/reset', (req, res) => {
+//   residents = {};
+//   industrialists = {};
+//   board = {
+//     resetFlag: 0,
+//     nextFlag: 0,
+//     flood: { round: 0, level: 0 },
+//     sediment: 0,
+//     sediment1: 0,
+//     sediment2: 0,
+//     subsidence: 0,
+//     subsidence1: 0,
+//     subsidence2: 0,
+//     govBudget: 0,
+//     floodProb: 0,
+//     tax1: 0,
+//     tax2: 0,
+//     remainingDredges: 1
+//   }
+//   console.log('DONEZO')
+//   res.json({ message: 'Data resetted successfully', data: {}});
+// })
 
 app.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
