@@ -37,59 +37,63 @@ const Board = () => {
 
   const [player, setPlayer] = useState('');
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (!hydration) {
-        setHydration(true)
+  const fetchData = async () => {
+    const res = await getGameState('board')
+    setResetFlag(res.resetFlag)
+    setNextFlag(res.nextFlag)
+    setFlood((prev) => {
+      if (prev.level !== res.flood.level || prev.round !== res.flood.round) {
+        return res.flood
       }
-      const fetchData = async () => {
-        // const res0 = await getGameState('residents')
-        // if (Object.keys(res0).length === 0 && player === PlayerType.MODERATOR) {
-          
-        //   return
-        // }
-        const res = await getGameState('board')
-        setResetFlag(res.resetFlag)
-        setNextFlag(res.nextFlag)
-        setFlood((prev) => {
-          if (prev.level !== res.flood.level || prev.round !== res.flood.round) {
-            return res.flood
-          }
-          return prev
-        })
+      return prev
+    })
 
-        setSediment(res.sediment)
-        setSediment1(res.sediment1)
-        setSediment2(res.sediment2)
-        setSubsidence(res.subsidence)
-        setSubsidence1(res.subsidence1)
-        setSubsidence2(res.subsidence2)
-        setGovBudget(res.govBudget)
-        setFloodProb(res.floodProb)
-        setTax1(res.tax1)
-        setTax2(res.tax2)
-        setRemainingDredges(res.remainingDredges)
-      }
+    setSediment(res.sediment)
+    setSediment1(res.sediment1)
+    setSediment2(res.sediment2)
+    setSubsidence(res.subsidence)
+    setSubsidence1(res.subsidence1)
+    setSubsidence2(res.subsidence2)
+    setGovBudget(res.govBudget)
+    setFloodProb(res.floodProb)
+    setTax1(res.tax1)
+    setTax2(res.tax2)
+    setRemainingDredges(res.remainingDredges)
+  }
+
+  useEffect(() => {
+    if (player === '') {
+      return
+    }
+
+    if (!hydration) {
+      setHydration(true)
       fetchData()
-    }, 1000)
+    }
+
+    if (player === PlayerType.MODERATOR) {
+      return
+    }
+
+    const interval = setInterval(() => fetchData(), 1000)
     return () => clearInterval(interval);
-  }, [])
+  }, [player])
 
   // useEffect(() => console.log('HEY THERE', resetFlag, nextFlag),[
   //   resetFlag, 
   //   nextFlag,
   //   // flood,
-  //   sediment,
-  //   sediment1,
-  //   sediment2,
-  //   subsidence,
-  //   subsidence1,
-  //   subsidence2,
-  //   govBudget,
-  //   floodProb,
-  //   tax1,
-  //   tax2,
-  //   remainingDredges
+  //   // sediment,
+  //   // sediment1,
+  //   // sediment2,
+  //   // subsidence,
+  //   // subsidence1,
+  //   // subsidence2,
+  //   // govBudget,
+  //   // floodProb,
+  //   // tax1,
+  //   // tax2,
+  //   // remainingDredges
   // ])
 
   useEffect(() => {
@@ -113,7 +117,8 @@ const Board = () => {
       tax2: tax2,
       remainingDredges: remainingDredges
     });
-  }, [sediment, subsidence, govBudget, tax1, tax2, resetFlag, nextFlag, sediment1, sediment2, subsidence1, subsidence2, floodProb, remainingDredges]);
+    // }, [sediment, subsidence, govBudget, tax1, tax2, resetFlag, nextFlag, sediment1, sediment2, subsidence1, subsidence2, floodProb, remainingDredges]);
+  }, [nextFlag, resetFlag]);
 
   const addSediment = (value) => {
     if (sediment + value > RIVER_DEPTH * 30) {

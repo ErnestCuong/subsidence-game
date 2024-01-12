@@ -1,5 +1,9 @@
 services:
   flooding:
-    build: ./
+    build: ./frontend
     ports:
       - "3000:3000"
+  backend:
+    build: ./backend
+    ports:
+      - "5000:5000"
