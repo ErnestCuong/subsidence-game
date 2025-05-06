@@ -242,10 +242,8 @@ const Board = () => {
         {player.length > 0 && <p className="text-lg font-bold">{`Current Role: ${player}`}</p>}
         {/* {player === PlayerType.MODERATOR && <button onClick={() => resetGameState(player)} className="rounded-md px-8 mx-8 bg-red-200 text-lg font-bold">RESET</button>} */}
       </div>
-      <div className="flex flex-row items-start mx-10 mt-10 gap-8">
-
-
-        <div className={`flex flex-col gap-8 items-center justify-center w-64 ${player === PlayerType.MODERATOR ? '' : 'pointer-events-none opacity-40'}`}>
+      <div className="flex flex-row justify-center mx-10 mt-10 gap-8">
+        <div className={`flex flex-col gap-8 items-center justify-center w-64 mx-40 ${player === PlayerType.MODERATOR ? '' : 'pointer-events-none opacity-40'}`}>
           {/* <div className="flex gap-20 items-center justify-center w-full"> */}
           <p className="font-bold text-2xl">GAME STATS</p>
           <p className="font-semibold">{`Sediment Level: ${sediment}`}</p>
