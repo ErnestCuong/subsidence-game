@@ -1,22 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
 import Cell, { CellType } from "./Cell";
-import ActionDialog from "./ActionDialog";
 import toast from "react-hot-toast";
 import Home from "../components/Home";
 import Default from "../components/Default";
 import Factory from "../components/Factory";
 import Road from "../components/Road";
-import Tree from "../components/Tree";
 import Trash from "../components/Trash";
 import GrowingTree from "../components/GrowingTree";
-import { getGameState, resetGameState, updateGameState } from "../apis/gameStateAPI";
-import { PlayerType } from "./Board";
+import { getGameState, updateGameState } from "../apis/gameStateAPI";
 
 const ROW_LENGTH = 10;
 const COLUMN_LENGTH = 10;
 const MIN_ACTIONS_PER_ROUND = 5;
 const MAX_ACTIONS_PER_ROUND = 15;
-const TAX_RATE = 0.3;
 
 export const Role = {
   RESIDENTS: 'residents',
@@ -252,16 +248,11 @@ const checkEqualActions = (actions1, actions2) => {
 }
 
 const Table = ({
-  id,
   isRotated,
   title,
   role,
   resetFlag,
   nextFlag,
-  flood,
-  addSediment,
-  increaseSubsidence,
-  payTax,
   player
 }) => {
   const [hydration, setHydration] = useState(false)
@@ -271,17 +262,6 @@ const Table = ({
   const [budget, setBudget] = useState(0);
   const [actions, setActions] = useState([]);
   const [selectedType, setSelectedType] = useState(CellType.DEFAULT);
-
-  // const resetState = () => {
-  //   setHydration(false)
-  //   setGrid(getNewGrid())
-  //   setOriginalGrid(getNewGrid())
-  //   setBudget(0)
-  //   setActions([])
-  //   setSelectedType(CellType.DEFAULT)
-  // }
-
-  const [pauseFetching, setPauseFetching] = useState(false)
 
   useEffect(() => {
     if (!hydration || (role !== player)) {
@@ -295,8 +275,11 @@ const Table = ({
       actions: actions,
       selectedType: selectedType
     }
-    updateGameState(role, data)
+    updateGameState(role, data).catch(() => undefined)
   }, [
+    hydration,
+    player,
+    role,
     grid,
     originalGrid,
     operableGrid,
@@ -314,12 +297,8 @@ const Table = ({
   //   // selectedType
   // ])
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     const res = await getGameState(role)
-    if (Object.keys(res).length === 0) {
-      resetGameState()
-      return
-    }
     setGrid((prev) => {
       if (!checkEqualGrids(prev, res.grid)) {
         return res.grid
@@ -351,7 +330,7 @@ const Table = ({
       return prev
     })
     setSelectedType(res.selectedType)
-  }
+  }, [role])
 
   useEffect(() => {
     if (player === '') {
@@ -359,84 +338,25 @@ const Table = ({
     }
 
     if (!hydration) {
-      setHydration(true)
       fetchData()
+        .then(() => setHydration(true))
+        .catch(() => undefined)
+      return undefined
     }
 
     if (player === role) {
       return
     }
 
-    let interval;
-    if (!pauseFetching) {
-      interval = setInterval(() => fetchData(), 1000)
-    }
+    const interval = setInterval(() => fetchData().catch(() => undefined), 1000)
 
     return () => clearInterval(interval);
-  }, [player, pauseFetching])
+  }, [fetchData, hydration, player, role])
 
   useEffect(() => {
-    setPauseFetching(true)
-    const checkUpdateFinish = async () => {
-      let res1 = await getGameState('board')
-      while (res1.nextFlag < nextFlag && res1.resetFlag < resetFlag) {
-        res1 = await getGameState('board')
-      }
-      setPauseFetching(false)
-    }
-    checkUpdateFinish()
-
-    if (player !== role) {
-      return
-    }
-    const fetchData = async () => {
-      const res0 = await getGameState(role)
-      if (Object.keys(res0).length === 0) {
-        resetGameState()
-        return
-      }
-
-      let res1 = await getGameState('board')
-      while (res1.nextFlag < nextFlag && res1.resetFlag < resetFlag) {
-        res1 = await getGameState('board')
-      }
-
-      const res = await getGameState(role)
-      setGrid((prev) => {
-        if (!checkEqualGrids(prev, res.grid)) {
-          return res.grid
-        }
-        return prev
-      })
-      setOriginalGrid((prev) => {
-        if (!checkEqualGrids(prev, res.originalGrid)) {
-          return res.originalGrid
-        }
-        return prev
-      })
-
-      setOperableGrid((prev) => {
-        if (!checkEqualGrids(prev, res.operableGrid)) {
-          return res.operableGrid
-        }
-        return prev
-      })
-      setBudget((prev) => {
-        if (prev === res.budget) {
-          return prev
-        }
-        return res.budget
-      })
-      setActions((prev) => {
-        if (!checkEqualActions(prev, res.actions)) {
-          return res.actions
-        }
-        return prev
-      })
-      setSelectedType(res.selectedType)
-    }
-    fetchData()
-  }, [nextFlag, resetFlag])
+    if (!hydration || !player) return
+    fetchData().catch(() => undefined)
+  }, [fetchData, hydration, nextFlag, player, resetFlag])
 
   const changeCellType = (rowIndex, columnIndex, newCellType) => {
     if (!grid) {
@@ -513,130 +433,6 @@ const Table = ({
     }
     return newSediment > 0 ? newSediment : 0;
   };
-
-  const growTrees = (updatedGrid) => {
-    for (let rowIndex = 0; rowIndex < ROW_LENGTH; rowIndex++) {
-      for (
-        let columnIndex = 1;
-        columnIndex < COLUMN_LENGTH + 1;
-        columnIndex++
-      ) {
-        if (updatedGrid[rowIndex][columnIndex] === CellType.GROWINGTREE) {
-          updatedGrid[rowIndex][columnIndex] = CellType.TREE;
-        }
-      }
-    }
-    for (let rowIndex = 0; rowIndex < ROW_LENGTH; rowIndex++) {
-      for (let columnIndex = 1; columnIndex < flood.level + 1; columnIndex++) {
-        if (updatedGrid[rowIndex][columnIndex] === CellType.TREE) {
-          updatedGrid[rowIndex][columnIndex] = CellType.GROWINGTREE
-        }
-      }
-    }
-    if (!checkEqualGrids(grid, updatedGrid)) {
-      setGrid(updatedGrid);
-    }
-    // updateGameState(role, updatedGrid)
-    if (!checkEqualGrids(originalGrid, updatedGrid)) {
-      setOriginalGrid(updatedGrid)
-    }
-  };
-
-  // useEffect(() => {
-  //   localStorage.setItem(id, JSON.stringify({ grid: grid, budget: budget }));
-  // }, [grid, budget, id]);
-
-  useEffect(() => {
-    if (resetFlag === 0) {
-      return;
-    }
-    setGrid(getNewGrid());
-    // updateGameState(role, getNewGrid())
-    setOriginalGrid(getNewGrid());
-    setBudget(0);
-
-    setActions([]);
-  }, [resetFlag]);
-
-  useEffect(() => {
-    if (nextFlag !== flood.round || !grid) {
-      return;
-    }
-    const updatedGrid = [...grid.map((row) => [...row])];
-    let cost = 0
-    if (player !== role) {
-      return
-    }
-
-    for (let rowIndex = 0; rowIndex < ROW_LENGTH; rowIndex++) {
-      for (let columnIndex = 1; columnIndex < flood.level + 1; columnIndex++) {
-        if (
-          grid[rowIndex][columnIndex] === CellType.DEFAULT
-          || grid[rowIndex][columnIndex] === CellType.GROWINGTREE
-          || grid[rowIndex][columnIndex] === CellType.TREE
-          || grid[rowIndex][columnIndex] === CellType.WATER
-        ) {
-          continue;
-        }
-
-        if (
-          columnIndex > 1 &&
-          grid[rowIndex][columnIndex - 1] === CellType.TREE
-        ) {
-          continue;
-        }
-
-        if (rowIndex > 0 && grid[rowIndex - 1][columnIndex] === CellType.TREE) {
-          continue;
-        }
-
-        if (
-          rowIndex < ROW_LENGTH - 1 &&
-          grid[rowIndex + 1][columnIndex] === CellType.TREE
-        ) {
-          continue;
-        }
-
-        if (updatedGrid[rowIndex][columnIndex] === CellType.HOME) {
-          cost = cost + 2
-        }
-
-        if (updatedGrid[rowIndex][columnIndex] === CellType.FACTORY) {
-          cost = cost + 4
-        }
-
-        updatedGrid[rowIndex][columnIndex] = CellType.DEFAULT;
-      }
-    }
-    growTrees(updatedGrid);
-    setBudget((prev) => {
-      if (prev - cost < 0) {
-        return 0
-      }
-      return prev - cost
-    })
-  }, [flood]);
-
-  useEffect(() => {
-    if (nextFlag === 0) {
-      return;
-    }
-    const profit = calculateProfit(grid);
-    const tax = Math.floor(profit * TAX_RATE);
-    console.log(role, profit, tax)
-    if (player === PlayerType.MODERATOR) {
-      addSediment(getNewSediment());
-      payTax(tax);
-      increaseSubsidence(getNewSubsidence());
-    }
-
-    if (player === role) {
-      setActions([]);
-      setBudget((prev) => { return prev + profit - tax });
-    }
-
-  }, [nextFlag]);
-
 
   useEffect(() => setOperableGrid(getOperableGrid(grid)), [grid]);
 

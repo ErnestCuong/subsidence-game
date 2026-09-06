@@ -1,70 +1,92 @@
-# Getting Started with Create React App
+# Subsidence Game
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A facilitated browser game for two teams: Residents and Industrialists. A third browser acts as Moderator and advances rounds, resets the game, and dredges the river.
 
-## Available Scripts
+## Local production setup
 
-In the project directory, you can run:
+Docker Compose runs two services:
 
-### `npm start`
+- `flooding`: a production React build served by Nginx on `http://127.0.0.1:3000`.
+- `backend`: an internal Express state server. It is reachable only through Nginx at `/api`.
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+Game state is stored in the Docker volume `subsidence-game_game-data` and survives container restarts. Only the frontend is bound to the Windows host, and it is bound to loopback rather than the LAN.
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+1. Copy `.env.example` to `.env` if `.env` does not already exist.
+2. Give all three roles unique access codes of at least eight characters.
+3. Build and start the game:
 
-### `npm test`
+   ```powershell
+   docker compose up --build -d
+   ```
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+4. Open <http://127.0.0.1:3000> in three separate browser profiles or devices reached through an approved proxy/tunnel.
+5. Use one controlling browser for each role. A role lease prevents two browsers from controlling the same role simultaneously.
 
-### `npm run build`
+The repository includes local-only codes in the ignored `.env` file. Rotate them before making the application public.
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+### Local access codes
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+Read the current codes without printing any other environment variables:
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+```powershell
+Get-Content -LiteralPath .env
+```
 
-### `npm run eject`
+### Game flow
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+1. Residents and Industrialists make their moves.
+2. Each team selects **Ready for next round**. A later edit automatically clears that team's ready state.
+3. The Moderator's **Next round** button becomes available when both teams are ready.
+4. The backend advances the round atomically, calculates tax/sediment/subsidence and flood damage, persists the result, and clears both ready flags.
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+### Operations
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+```powershell
+# Status and health
+docker compose ps
+Invoke-RestMethod http://127.0.0.1:3000/healthz
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+# Follow logs
+docker compose logs -f --tail 100
 
-## Learn More
+# Stop while retaining game state
+docker compose down
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+# Start again with retained game state
+docker compose up -d
+```
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+Do not run `docker compose down --volumes` unless the saved game should be permanently removed.
 
-### Code Splitting
+## Architecture and safeguards
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+- Same-origin browser/API traffic; there is no hard-coded cloud backend.
+- Role access codes are required for all state-changing requests.
+- One active controlling browser is allowed per role; leases expire after 45 seconds without traffic.
+- The two teams must explicitly mark themselves ready before a round can advance.
+- Round transitions, resets, and dredging are server-authoritative and atomic.
+- State writes use an atomic file replacement in a persistent Docker volume.
+- JSON bodies are limited to 64 KB and validated against the expected 10-by-11 grid structure.
+- Basic per-client request limiting, security response headers, health checks, and automatic container restart policies are enabled.
 
-### Analyzing the Bundle Size
+## Public hosting later
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+The intended public topology is one named Cloudflare Tunnel hostname pointing to `http://localhost:3000`. No tunnel is included or started yet. Before the event:
 
-### Making a Progressive Web App
+1. Replace every access code in `.env` with a strong new value.
+2. Install/configure a named Cloudflare Tunnel, not a temporary TryCloudflare URL.
+3. Test from three devices outside the home network.
+4. Confirm Windows and Docker Desktop will not sleep, restart, or auto-update during the event.
+5. Rehearse stopping and starting Compose and verify that the saved game returns.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+## Development
 
-### Advanced Configuration
+The frontend source is under `frontend/`; the backend is under `backend/`. The root-level Node package is legacy and is not used by Docker Compose.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+Run a frontend build without Docker:
 
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+```powershell
+Set-Location frontend
+npm.cmd ci
+npm.cmd run build
+```
