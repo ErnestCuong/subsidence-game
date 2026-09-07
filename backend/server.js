@@ -7,6 +7,7 @@ const express = require('express');
 
 const PORT = Number(process.env.PORT || 5000);
 const STATE_FILE = process.env.STATE_FILE || path.join(__dirname, 'data', 'game-state.json');
+const HISTORY_DIR = process.env.HISTORY_DIR || path.join(__dirname, 'history');
 const LEASE_MS = Number(process.env.CONTROLLER_LEASE_MS || 45_000);
 const REQUEST_LIMIT = Number(process.env.MAX_REQUESTS_PER_MINUTE || 1_200);
 
@@ -140,6 +141,7 @@ function newState(resetFlag = 0) {
     residents: newPlayer(),
     industrialists: newPlayer(),
     board: newBoard(resetFlag),
+    history: null,
   };
 }
 
@@ -191,6 +193,12 @@ function validState(value) {
   }
 }
 
+function validHistory(value) {
+  return value === null || Boolean(value &&
+    typeof value.id === 'string' && /^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}-\d{3}_SGT(?:-\d+)?$/.test(value.id) &&
+    typeof value.createdAt === 'string' && Number.isFinite(Date.parse(value.createdAt)));
+}
+
 function loadState() {
   if (!fs.existsSync(STATE_FILE)) return newState();
   try {
@@ -200,6 +208,7 @@ function loadState() {
       residents: Boolean(loaded.board.ready?.residents),
       industrialists: Boolean(loaded.board.ready?.industrialists),
     };
+    loaded.history = validHistory(loaded.history) ? loaded.history : null;
     return loaded;
   } catch (error) {
     console.error(`Could not load ${STATE_FILE}: ${error.message}; starting a new game`);
@@ -212,6 +221,166 @@ function saveState(state) {
   const temporary = `${STATE_FILE}.${process.pid}.tmp`;
   fs.writeFileSync(temporary, `${JSON.stringify(state)}\n`, { encoding: 'utf8', mode: 0o600 });
   fs.renameSync(temporary, STATE_FILE);
+}
+
+function singaporeTimestamp(date = new Date()) {
+  const shifted = new Date(date.getTime() + 8 * 60 * 60 * 1000);
+  const pad = (value, length = 2) => String(value).padStart(length, '0');
+  return {
+    folder: `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}_` +
+      `${pad(shifted.getUTCHours())}-${pad(shifted.getUTCMinutes())}-${pad(shifted.getUTCSeconds())}-` +
+      `${pad(shifted.getUTCMilliseconds(), 3)}_SGT`,
+    display: `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())} ` +
+      `${pad(shifted.getUTCHours())}:${pad(shifted.getUTCMinutes())}:${pad(shifted.getUTCSeconds())} SGT`,
+  };
+}
+
+function createHistorySession() {
+  const created = new Date();
+  const timestamp = singaporeTimestamp(created);
+  fs.mkdirSync(HISTORY_DIR, { recursive: true });
+  let id = timestamp.folder;
+  let suffix = 2;
+  while (fs.existsSync(path.join(HISTORY_DIR, id))) {
+    id = `${timestamp.folder}-${suffix}`;
+    suffix += 1;
+  }
+  fs.mkdirSync(path.join(HISTORY_DIR, id), { recursive: false });
+  return { id, createdAt: created.toISOString() };
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+const cellView = Object.freeze({
+  [Cell.DEFAULT]: { className: 'default', symbol: '', label: 'Empty' },
+  [Cell.ROAD]: { className: 'road', symbol: '━', label: 'Road' },
+  [Cell.WATER]: { className: 'water', symbol: '≈', label: 'River' },
+  [Cell.HOME]: { className: 'building', symbol: '⌂', label: 'Home' },
+  [Cell.FACTORY]: { className: 'building', symbol: '⚙', label: 'Factory' },
+  [Cell.TREE]: { className: 'tree', symbol: '▲', label: 'Tree' },
+  [Cell.TRASH]: { className: 'trash', symbol: '♻', label: 'Trash management' },
+  [Cell.GROWING_TREE]: { className: 'growing-tree', symbol: '♠', label: 'Growing tree' },
+});
+
+function renderGrid(player, rotated) {
+  const columns = Array.from({ length: COLUMNS + 1 }, (_, index) => rotated ? COLUMNS - index : index);
+  const header = columns.map((column) => `<th scope="col">${column}</th>`).join('');
+  const rows = player.grid.map((row, rowIndex) => {
+    const cells = columns.map((column) => {
+      const type = row[column];
+      const view = cellView[type];
+      const inactive = type !== player.operableGrid[rowIndex][column] ? ' inactive' : '';
+      return `<td class="tile ${view.className}${inactive}" title="${escapeHtml(view.label)}${inactive ? ' (inactive)' : ''}">` +
+        `<span aria-hidden="true">${view.symbol}</span><span class="sr-only">${escapeHtml(view.label)}</span></td>`;
+    }).join('');
+    return `<tr>${cells}</tr>`;
+  }).join('');
+  return `<div class="grid-scroll"><table class="game-grid"><thead><tr>${header}</tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function renderPlayerPanel(gameState, role, label, rotated) {
+  const player = gameState[role];
+  const ready = Boolean(gameState.board.ready[role]);
+  return `<section class="player-panel">
+    <div class="player-heading">
+      <h2>${escapeHtml(label)}</h2>
+      <span class="ready ${ready ? 'yes' : 'no'}">${ready ? 'Ready' : 'Not ready'}</span>
+    </div>
+    ${renderGrid(player, rotated)}
+    <dl class="player-stats">
+      <div><dt>Budget</dt><dd>$${player.budget}</dd></div>
+      <div><dt>Active profit</dt><dd>+$${profitFor(player.grid)}</dd></div>
+      <div><dt>Sediment this round</dt><dd>+${sedimentFor(player.grid)}</dd></div>
+      <div><dt>Subsidence this round</dt><dd>+${subsidenceFor(player)}</dd></div>
+      <div><dt>Actions used</dt><dd>${player.actions.length}</dd></div>
+    </dl>
+  </section>`;
+}
+
+function renderSnapshot(gameState, phase, capturedAt = new Date()) {
+  const round = gameState.board.nextFlag + 1;
+  const phaseLabel = phase === 'start' ? 'Start' : 'End';
+  const createdLabel = singaporeTimestamp(new Date(gameState.history.createdAt)).display;
+  const capturedLabel = singaporeTimestamp(capturedAt).display;
+  const floodNotice = phase === 'start' && round >= 2
+    ? `<div class="flood ${gameState.board.flood.level > 0 ? 'occurred' : 'clear'}">` +
+      `${gameState.board.flood.level > 0 ? `Flood level ${gameState.board.flood.level}` : 'No flood'} before Round ${round}</div>`
+    : '';
+  const title = `Subsidence Game · Round ${round} · ${phaseLabel}`;
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${escapeHtml(title)}</title>
+  <style>
+    :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#172033;background:#f1f5f9}
+    *{box-sizing:border-box}body{margin:0;padding:24px;background:#f1f5f9}main{max-width:1600px;margin:auto}
+    header,.summary,.player-panel,.legend{background:#fff;border-radius:14px;box-shadow:0 5px 18px #0f172a14}
+    header{padding:22px 26px;display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between}
+    h1,h2,p{margin:0}.eyebrow{color:#475569;font-weight:700;text-transform:uppercase;letter-spacing:.08em;font-size:12px}
+    h1{font-size:30px;margin-top:3px}.meta{text-align:right;color:#475569;font-size:14px;line-height:1.55}
+    .phase{display:inline-block;margin-left:8px;padding:4px 9px;border-radius:999px;background:#dbeafe;color:#1e3a8a;font-size:13px;vertical-align:middle}
+    .flood{margin-top:14px;padding:15px 20px;border-radius:12px;font-size:18px;font-weight:800;text-align:center}
+    .flood.occurred{background:#bfdbfe;color:#1e3a8a;border:2px solid #3b82f6}.flood.clear{background:#dcfce7;color:#166534;border:2px solid #4ade80}
+    .summary{margin-top:14px;padding:16px;display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:10px}
+    .stat{padding:12px;border-radius:10px;background:#f8fafc;border:1px solid #e2e8f0}.stat span{display:block;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase}.stat strong{display:block;margin-top:5px;font-size:21px}
+    .boards{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;align-items:start}.player-panel{padding:18px;min-width:0}
+    .player-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}.player-heading h2{font-size:21px}.ready{padding:5px 10px;border-radius:999px;font-size:13px;font-weight:800}.ready.yes{background:#dcfce7;color:#166534}.ready.no{background:#e2e8f0;color:#475569}
+    .grid-scroll{overflow-x:auto}.game-grid{border-collapse:collapse;margin:auto;background:white}.game-grid th{height:28px;background:#64748b;color:#fff;border:2px solid #111827;font-size:12px}
+    .tile{width:42px;height:42px;min-width:42px;border:2px solid #111827;text-align:center;font-size:23px;font-weight:900;line-height:1;transition:none}.tile.default{background:#fff}.tile.road{background:#d1d5db;color:#374151}.tile.water{background:#93c5fd;color:#1d4ed8}.tile.building{background:#fde047;color:#713f12}.tile.tree{background:#86efac;color:#166534}.tile.growing-tree{background:#bbf7d0;color:#15803d}.tile.trash{background:#fca5a5;color:#7f1d1d}.tile.inactive{filter:grayscale(1);opacity:.38}
+    .player-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:14px 0 0}.player-stats div{padding:9px;background:#f8fafc;border-radius:8px;text-align:center}.player-stats dt{font-size:11px;color:#64748b;font-weight:700}.player-stats dd{margin:4px 0 0;font-weight:900}
+    .legend{margin-top:14px;padding:14px 18px;display:flex;gap:18px;flex-wrap:wrap;color:#475569;font-size:13px}.swatch{display:inline-block;width:14px;height:14px;border:1px solid #64748b;vertical-align:-2px;margin-right:5px}.inactive-key{filter:grayscale(1);opacity:.38;background:#fde047}
+    footer{padding:14px;text-align:center;color:#64748b;font-size:12px}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+    @media(max-width:1050px){.boards{grid-template-columns:1fr}.summary{grid-template-columns:repeat(3,1fr)}}
+    @media(max-width:600px){body{padding:10px}.summary{grid-template-columns:repeat(2,1fr)}.player-stats{grid-template-columns:repeat(2,1fr)}.meta{text-align:left}.tile{width:34px;height:34px;min-width:34px;font-size:18px}}
+    @media print{body{padding:0;background:#fff}header,.summary,.player-panel,.legend{box-shadow:none;border:1px solid #cbd5e1}.boards{grid-template-columns:1fr 1fr}.tile{width:27px;height:27px;min-width:27px;font-size:15px}}
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div><div class="eyebrow">Game history snapshot</div><h1>Round ${round}<span class="phase">${phaseLabel}</span></h1></div>
+    <div class="meta"><strong>Game ${escapeHtml(gameState.history.id)}</strong><br>Started ${createdLabel}<br>Captured ${capturedLabel}</div>
+  </header>
+  ${floodNotice}
+  <section class="summary" aria-label="Game status">
+    <div class="stat"><span>Round</span><strong>${round}</strong></div>
+    <div class="stat"><span>Sediment</span><strong>${gameState.board.sediment}</strong></div>
+    <div class="stat"><span>Subsidence</span><strong>${gameState.board.subsidence}</strong></div>
+    <div class="stat"><span>Government budget</span><strong>$${gameState.board.govBudget}</strong></div>
+    <div class="stat"><span>Flood probability</span><strong>${Math.round(gameState.board.floodProb * 100)}%</strong></div>
+    <div class="stat"><span>Dredges remaining</span><strong>${gameState.board.remainingDredges}</strong></div>
+  </section>
+  <div class="boards">
+    ${renderPlayerPanel(gameState, Role.RESIDENTS, 'Residential Area', true)}
+    ${renderPlayerPanel(gameState, Role.INDUSTRIALISTS, 'Industrial Area', false)}
+  </div>
+  <aside class="legend"><span><i class="swatch inactive-key"></i>Greyed tile = inactive or disconnected</span><span>⌂ Home</span><span>⚙ Factory</span><span>━ Road</span><span>▲ Tree</span><span>♠ Growing tree</span><span>♻ Trash management</span><span>≈ River</span></aside>
+  <footer>Static, self-contained snapshot generated by the Subsidence Game server.</footer>
+</main>
+</body>
+</html>\n`;
+}
+
+function writeSnapshot(gameState, phase) {
+  if (!validHistory(gameState.history)) throw new Error('Cannot write history for an invalid game session');
+  if (!gameState.history) return;
+  const round = gameState.board.nextFlag + 1;
+  const filename = `round-${String(round).padStart(2, '0')}-${phase}.html`;
+  const directory = path.join(HISTORY_DIR, gameState.history.id);
+  fs.mkdirSync(directory, { recursive: true });
+  const target = path.join(directory, filename);
+  const temporary = `${target}.${process.pid}.tmp`;
+  fs.writeFileSync(temporary, renderSnapshot(gameState, phase), { encoding: 'utf8', mode: 0o600 });
+  fs.renameSync(temporary, target);
 }
 
 function tokensEqual(provided, expected) {
@@ -387,35 +556,53 @@ for (const role of playerRoles) {
   });
 }
 
-app.post('/api/reset', requireRole(Role.MODERATOR), (request, response) => {
-  state = newState(state.board.resetFlag + 1);
-  saveState(state);
-  response.json(state.board);
+app.post('/api/reset', requireRole(Role.MODERATOR), (request, response, next) => {
+  try {
+    if (state.history) writeSnapshot(state, 'end');
+    const nextState = newState(state.board.resetFlag + 1);
+    nextState.history = createHistorySession();
+    writeSnapshot(nextState, 'start');
+    saveState(nextState);
+    state = nextState;
+    return response.json(state.board);
+  } catch (error) {
+    return next(error);
+  }
 });
 
-app.post('/api/advance', requireRole(Role.MODERATOR), (request, response) => {
+app.post('/api/advance', requireRole(Role.MODERATOR), (request, response, next) => {
   if (!playerRoles.every((role) => state.board.ready[role])) {
     return response.status(409).json({ error: 'Both teams must be ready before advancing the round' });
   }
-  const flood = nextFlood(state.board);
-  const residents = processRound(state.residents, flood.level);
-  const industrialists = processRound(state.industrialists, flood.level);
-  const contributions = [residents.contribution, industrialists.contribution];
-  state.residents = residents.player;
-  state.industrialists = industrialists.player;
-  state.board = {
-    ...state.board,
-    nextFlag: state.board.nextFlag + 1,
-    flood: { round: state.board.nextFlag + 1, level: flood.level },
-    sediment: Math.min(RIVER_DEPTH * 30, state.board.sediment + contributions.reduce((sum, item) => sum + item.sediment, 0)),
-    subsidence: Math.min(RIVER_DEPTH * 15, state.board.subsidence + contributions.reduce((sum, item) => sum + item.subsidence, 0)),
-    govBudget: state.board.govBudget + contributions.reduce((sum, item) => sum + item.tax, 0),
-    floodProb: flood.probability,
-    remainingDredges: 1,
-    ready: { residents: false, industrialists: false },
-  };
-  saveState(state);
-  return response.json(state.board);
+  try {
+    const flood = nextFlood(state.board);
+    const residents = processRound(state.residents, flood.level);
+    const industrialists = processRound(state.industrialists, flood.level);
+    const contributions = [residents.contribution, industrialists.contribution];
+    const nextState = {
+      ...state,
+      residents: residents.player,
+      industrialists: industrialists.player,
+      board: {
+        ...state.board,
+        nextFlag: state.board.nextFlag + 1,
+        flood: { round: state.board.nextFlag + 1, level: flood.level },
+        sediment: Math.min(RIVER_DEPTH * 30, state.board.sediment + contributions.reduce((sum, item) => sum + item.sediment, 0)),
+        subsidence: Math.min(RIVER_DEPTH * 15, state.board.subsidence + contributions.reduce((sum, item) => sum + item.subsidence, 0)),
+        govBudget: state.board.govBudget + contributions.reduce((sum, item) => sum + item.tax, 0),
+        floodProb: flood.probability,
+        remainingDredges: 1,
+        ready: { residents: false, industrialists: false },
+      },
+    };
+    writeSnapshot(state, 'end');
+    writeSnapshot(nextState, 'start');
+    saveState(nextState);
+    state = nextState;
+    return response.json(state.board);
+  } catch (error) {
+    return next(error);
+  }
 });
 
 app.post('/api/dredge', requireRole(Role.MODERATOR), (request, response) => {

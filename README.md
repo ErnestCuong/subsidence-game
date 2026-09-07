@@ -39,6 +39,19 @@ Get-Content -LiteralPath .env
 3. The Moderator's **Next round** button becomes available when both teams are ready.
 4. The backend advances the round atomically, calculates tax/sediment/subsidence and flood damage, persists the result, and clears both ready flags.
 
+### Game history
+
+Starting a new game from the Moderator controls creates a timestamped folder under `history/`, using Singapore time. The folder is private to this computer and is not served by Nginx or exposed through the tunnel.
+
+Each round has two self-contained, view-only HTML snapshots:
+
+- `round-01-start.html` records the initial board after the new game is created.
+- `round-01-end.html` records both teams immediately before the Moderator advances.
+- `round-02-start.html` records the post-advance board, including the flood level or **No flood**.
+- The same start/end pattern continues for every subsequent round.
+
+If the Moderator resets during an unfinished round, its current state is saved as that round's final `end` snapshot before the next timestamped game folder is created. History remains available across container restarts and is ignored by Git.
+
 ### Operations
 
 ```powershell

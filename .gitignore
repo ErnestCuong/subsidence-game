@@ -25,3 +25,6 @@ yarn-error.log*
 
 # local backend state
 /backend/data/
+
+# generated game snapshots
+/history/

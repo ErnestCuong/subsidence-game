@@ -15,6 +15,8 @@ services:
     environment:
       PORT: "5000"
       STATE_FILE: /data/game-state.json
+      HISTORY_DIR: /history
+      TZ: Asia/Singapore
       CONTROLLER_LEASE_MS: "45000"
       MAX_REQUESTS_PER_MINUTE: "1200"
       RESIDENTS_TOKEN: ${RESIDENTS_TOKEN:?Set RESIDENTS_TOKEN in .env}
@@ -22,6 +24,7 @@ services:
       MODERATOR_TOKEN: ${MODERATOR_TOKEN:?Set MODERATOR_TOKEN in .env}
     volumes:
       - game-data:/data
+      - ./history:/history
     restart: unless-stopped
 
 volumes:
