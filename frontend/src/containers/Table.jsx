@@ -253,7 +253,8 @@ const Table = ({
   role,
   resetFlag,
   nextFlag,
-  player
+  player,
+  editingEnabled,
 }) => {
   const [hydration, setHydration] = useState(false)
   const [grid, setGrid] = useState(getNewGrid());
@@ -264,7 +265,7 @@ const Table = ({
   const [selectedType, setSelectedType] = useState(CellType.DEFAULT);
 
   useEffect(() => {
-    if (!hydration || (role !== player)) {
+    if (!hydration || role !== player || !editingEnabled) {
       return
     }
     const data = {
@@ -275,9 +276,11 @@ const Table = ({
       actions: actions,
       selectedType: selectedType
     }
-    updateGameState(role, data).catch(() => undefined)
+    updateGameState(role, data, nextFlag).catch(() => undefined)
   }, [
     hydration,
+    editingEnabled,
+    nextFlag,
     player,
     role,
     grid,
@@ -357,6 +360,11 @@ const Table = ({
     if (!hydration || !player) return
     fetchData().catch(() => undefined)
   }, [fetchData, hydration, nextFlag, player, resetFlag])
+
+  useEffect(() => {
+    if (!hydration || !player || editingEnabled) return
+    fetchData().catch(() => undefined)
+  }, [editingEnabled, fetchData, hydration, player])
 
   const changeCellType = (rowIndex, columnIndex, newCellType) => {
     if (!grid) {
@@ -463,7 +471,7 @@ const Table = ({
 
   return (
     <>
-      {grid && (<div className={`inline-container flex-shrink-0 flex flex-row ${player === role ? '' : 'pointer-events-none opacity-60'}`}>
+      {grid && (<div className={`inline-container flex-shrink-0 flex flex-row ${player === role && editingEnabled ? '' : 'pointer-events-none opacity-60'}`}>
         {isRotated && (
           <ActionBar
             selectedType={selectedType}
@@ -615,7 +623,7 @@ const Table = ({
               </tr>
             ))}
             <tr className="border border-transparent">
-              <th colSpan={COLUMN_LENGTH + 1}>{`Budget: ${budget}$`}</th>
+              <th colSpan={COLUMN_LENGTH + 1}>{`Wealth: ${budget}$`}</th>
             </tr>
             <tr className="border border-transparent">
               <th colSpan={COLUMN_LENGTH + 1}>

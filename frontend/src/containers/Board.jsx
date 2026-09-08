@@ -10,9 +10,16 @@ import {
   resetGameState,
   restoreSession,
   setRoleReady,
+  startRound,
 } from '../apis/gameStateAPI'
 
 const DREDGE_COST = 10
+const ROUND_DURATION_MS = 3 * 60 * 1000
+
+const formatTimer = (milliseconds) => {
+  const seconds = Math.ceil(Math.max(0, milliseconds) / 1000)
+  return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
+}
 
 export const PlayerType = {
   RESIDENTS: 'residents',
@@ -36,6 +43,7 @@ const initialBoard = {
   floodProb: 0,
   remainingDredges: 1,
   ready: { residents: false, industrialists: false },
+  timer: { durationMs: ROUND_DURATION_MS, startedAt: null, deadline: null },
 }
 
 const Board = () => {
@@ -46,6 +54,7 @@ const Board = () => {
   const [busy, setBusy] = useState(false)
   const [apiError, setApiError] = useState('')
   const [canTakeOverModerator, setCanTakeOverModerator] = useState(false)
+  const [clock, setClock] = useState(Date.now())
 
   const fetchBoard = useCallback(async () => {
     const data = await getGameState('board')
@@ -57,6 +66,11 @@ const Board = () => {
     const statusListener = (event) => setApiError(event.detail.ok ? '' : event.detail.message)
     window.addEventListener('game-api-status', statusListener)
     return () => window.removeEventListener('game-api-status', statusListener)
+  }, [])
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setClock(Date.now()), 250)
+    return () => window.clearInterval(interval)
   }, [])
 
   useEffect(() => {
@@ -127,7 +141,7 @@ const Board = () => {
   const markReady = async () => {
     setBusy(true)
     try {
-      await setRoleReady(player)
+      await setRoleReady(player, board.nextFlag)
       await fetchBoard()
       toast.success('Your team is ready')
     } catch (error) {
@@ -193,6 +207,12 @@ const Board = () => {
     )
   }
 
+  const deadline = Date.parse(board.timer?.deadline || '')
+  const timerStarted = Number.isFinite(deadline)
+  const remainingMs = timerStarted
+    ? Math.max(0, deadline - clock)
+    : (board.timer?.durationMs || ROUND_DURATION_MS)
+  const roundEditingOpen = timerStarted && remainingMs > 0
   const teamsReady = board.ready?.residents && board.ready?.industrialists
   const isTeam = player === PlayerType.RESIDENTS || player === PlayerType.INDUSTRIALISTS
 
@@ -201,7 +221,7 @@ const Board = () => {
       <header className="mx-auto flex max-w-screen-2xl flex-wrap items-center justify-between gap-3 rounded-lg bg-white p-4 shadow">
         <div className="text-left">
           <h1 className="text-2xl font-bold">Subsidence Game</h1>
-          <p className="text-slate-600">Role: {roleLabels[player]} · Round {board.nextFlag}</p>
+          <p className="text-slate-600">Role: {roleLabels[player]} · Round {board.nextFlag + 1}</p>
         </div>
         <div className="flex items-center gap-3">
           {apiError && <span className="rounded bg-red-100 px-3 py-2 text-sm text-red-800">Disconnected: {apiError}</span>}
@@ -212,6 +232,11 @@ const Board = () => {
       <section className="mx-auto mt-4 flex max-w-screen-2xl flex-wrap justify-center gap-4">
         <aside className="w-full rounded-lg bg-white p-5 shadow sm:w-72">
           <h2 className="text-xl font-bold">Game status</h2>
+          <div className={`mt-4 rounded-lg border p-3 text-center ${remainingMs === 0 ? 'border-red-300 bg-red-50' : timerStarted ? 'border-blue-300 bg-blue-50' : 'border-slate-300 bg-slate-50'}`}>
+            <div className="text-xs font-bold uppercase tracking-wide text-slate-600">Round timer</div>
+            <div className={`mt-1 text-4xl font-black tabular-nums ${remainingMs === 0 ? 'text-red-700' : 'text-slate-900'}`}>{formatTimer(remainingMs)}</div>
+            <div className="mt-1 text-xs text-slate-600">{!timerStarted ? 'Waiting for Moderator' : remainingMs === 0 ? 'Time is up — both teams are ready' : 'Round in progress'}</div>
+          </div>
           <dl className="mt-4 space-y-2 text-left">
             <div className="flex justify-between"><dt>Sediment</dt><dd>{board.sediment}</dd></div>
             <div className="flex justify-between"><dt>Subsidence</dt><dd>{board.subsidence}</dd></div>
@@ -221,17 +246,20 @@ const Board = () => {
           </dl>
 
           {isTeam && (
-            <button className="btn mt-5 w-full bg-blue-200" disabled={busy || board.ready?.[player]} onClick={markReady}>
-              {board.ready?.[player] ? 'Team ready' : 'Ready for next round'}
+            <button className="btn mt-5 w-full bg-blue-200" disabled={busy || !roundEditingOpen || board.ready?.[player]} onClick={markReady}>
+              {!timerStarted ? 'Waiting for Moderator' : remainingMs === 0 ? 'Time expired' : board.ready?.[player] ? 'Team ready' : 'Ready for next round'}
             </button>
           )}
 
           {player === PlayerType.MODERATOR && (
             <div className="mt-5 space-y-3">
               <button className="btn w-full bg-red-200" disabled={busy} onClick={() => runModeratorAction(resetGameState, () => 'New game started')}>Reset game</button>
+              {!timerStarted && (
+                <button className="btn w-full bg-blue-300" disabled={busy} onClick={() => runModeratorAction(startRound, () => 'Round started')}>Start round</button>
+              )}
               <button
                 className="btn w-full bg-green-300"
-                disabled={busy || !teamsReady}
+                disabled={busy || !timerStarted || !teamsReady}
                 onClick={() => runModeratorAction(advanceRound, (data) => data.flood.level > 0
                   ? { type: 'error', message: `Flood level ${data.flood.level}` }
                   : { type: 'success', message: 'No flood' })}
@@ -251,8 +279,26 @@ const Board = () => {
 
         <div className="max-w-full overflow-x-auto rounded-lg bg-white p-4 shadow">
           <div className="flex min-w-max flex-row justify-center">
-            <Table isRotated title="Residential Area" role={Role.RESIDENTS} resetFlag={board.resetFlag} nextFlag={board.nextFlag} player={player} />
-            <Table isRotated={false} title="Industrial Area" role={Role.COMPANIES} resetFlag={board.resetFlag} nextFlag={board.nextFlag} player={player} />
+            <Table
+              key={`residents-${board.resetFlag}-${board.nextFlag}`}
+              isRotated
+              title="Residential Area"
+              role={Role.RESIDENTS}
+              resetFlag={board.resetFlag}
+              nextFlag={board.nextFlag}
+              player={player}
+              editingEnabled={roundEditingOpen && !board.ready?.residents}
+            />
+            <Table
+              key={`industrialists-${board.resetFlag}-${board.nextFlag}`}
+              isRotated={false}
+              title="Industrial Area"
+              role={Role.COMPANIES}
+              resetFlag={board.resetFlag}
+              nextFlag={board.nextFlag}
+              player={player}
+              editingEnabled={roundEditingOpen && !board.ready?.industrialists}
+            />
           </div>
         </div>
       </section>

@@ -79,11 +79,11 @@ function getGameState(role) {
   return request(`/api/${role}`)
 }
 
-function updateGameState(role, data) {
+function updateGameState(role, data, round) {
   const previous = writeQueues[role] || Promise.resolve()
   const next = previous.catch(() => undefined).then(() => request(`/api/${role}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-Game-Round': String(round) },
     body: JSON.stringify(data),
   }))
   writeQueues[role] = next
@@ -94,9 +94,12 @@ function flushPendingWrites(role) {
   return writeQueues[role] || Promise.resolve()
 }
 
-async function setRoleReady(role) {
+async function setRoleReady(role, round) {
   await flushPendingWrites(role)
-  return request(`/api/${role}/ready`, { method: 'POST' })
+  return request(`/api/${role}/ready`, {
+    method: 'POST',
+    headers: { 'X-Game-Round': String(round) },
+  })
 }
 
 function resetGameState() {
@@ -105,6 +108,10 @@ function resetGameState() {
 
 function advanceRound() {
   return request('/api/advance', { method: 'POST' })
+}
+
+function startRound() {
+  return request('/api/start-round', { method: 'POST' })
 }
 
 function dredgeRiver() {
@@ -120,5 +127,6 @@ export {
   resetGameState,
   restoreSession,
   setRoleReady,
+  startRound,
   updateGameState,
 }

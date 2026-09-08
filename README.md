@@ -34,10 +34,11 @@ Get-Content -LiteralPath .env
 
 ### Game flow
 
-1. Residents and Industrialists make their moves.
-2. Each team selects **Ready for next round**. A later edit automatically clears that team's ready state.
-3. The Moderator's **Next round** button becomes available when both teams are ready.
-4. The backend advances the round atomically, calculates tax/sediment/subsidence and flood damage, persists the result, and clears both ready flags.
+1. A new game's first round is locked at **03:00** until the Moderator selects **Start round**.
+2. Residents and Industrialists make their moves while the server-authoritative three-minute timer is running.
+3. Each team may select **Ready for next round** early. Once ready, that team's board is locked until the next round.
+4. At **00:00**, the backend rejects further edits and automatically marks both teams ready with their current boards.
+5. The Moderator's **Next round** button becomes available when both teams are ready. Advancing calculates tax/sediment/subsidence and flood damage, persists the result, clears both ready flags, and immediately starts a fresh three-minute timer.
 
 ### Game history
 
@@ -76,7 +77,7 @@ Do not run `docker compose down --volumes` unless the saved game should be perma
 - Same-origin browser/API traffic; there is no hard-coded cloud backend.
 - Role access codes are required for all state-changing requests.
 - One active controlling browser is allowed per role; leases expire after 45 seconds without traffic. A Moderator who has the correct access code can explicitly transfer control from an old device, while team roles cannot be taken over.
-- The two teams must explicitly mark themselves ready before a round can advance.
+- The two teams can mark themselves ready early; the server automatically marks both ready when the persistent round timer expires.
 - Round transitions, resets, and dredging are server-authoritative and atomic.
 - State writes use an atomic file replacement in a persistent Docker volume.
 - JSON bodies are limited to 64 KB and validated against the expected 10-by-11 grid structure.

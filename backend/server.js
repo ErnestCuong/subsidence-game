@@ -10,6 +10,11 @@ const STATE_FILE = process.env.STATE_FILE || path.join(__dirname, 'data', 'game-
 const HISTORY_DIR = process.env.HISTORY_DIR || path.join(__dirname, 'history');
 const LEASE_MS = Number(process.env.CONTROLLER_LEASE_MS || 45_000);
 const REQUEST_LIMIT = Number(process.env.MAX_REQUESTS_PER_MINUTE || 1_200);
+const ROUND_DURATION_MS = Number(process.env.ROUND_DURATION_MS || 180_000);
+
+if (!Number.isInteger(ROUND_DURATION_MS) || ROUND_DURATION_MS < 1_000 || ROUND_DURATION_MS > 86_400_000) {
+  throw new Error('ROUND_DURATION_MS must be an integer between 1000 and 86400000');
+}
 
 const ROWS = 10;
 const COLUMNS = 10;
@@ -132,6 +137,7 @@ function newBoard(resetFlag = 0) {
     floodProb: 0,
     remainingDredges: 1,
     ready: { residents: false, industrialists: false },
+    timer: { durationMs: ROUND_DURATION_MS, startedAt: null, deadline: null },
   };
 }
 
@@ -199,6 +205,38 @@ function validHistory(value) {
     typeof value.createdAt === 'string' && Number.isFinite(Date.parse(value.createdAt)));
 }
 
+function normalizeTimer(value) {
+  if (!value || typeof value !== 'object') {
+    return { durationMs: ROUND_DURATION_MS, startedAt: null, deadline: null };
+  }
+  const startedAt = typeof value.startedAt === 'string' && Number.isFinite(Date.parse(value.startedAt))
+    ? value.startedAt
+    : null;
+  const deadline = typeof value.deadline === 'string' && Number.isFinite(Date.parse(value.deadline))
+    ? value.deadline
+    : null;
+  if (!startedAt || !deadline || Date.parse(deadline) < Date.parse(startedAt)) {
+    return { durationMs: ROUND_DURATION_MS, startedAt: null, deadline: null };
+  }
+  return { durationMs: ROUND_DURATION_MS, startedAt, deadline };
+}
+
+function timerDeadline(board) {
+  const value = Date.parse(board.timer?.deadline || '');
+  return Number.isFinite(value) ? value : null;
+}
+
+function timerRemainingMs(board, now = Date.now()) {
+  const deadline = timerDeadline(board);
+  return deadline === null ? ROUND_DURATION_MS : Math.max(0, deadline - now);
+}
+
+function timerDisplay(board, now = Date.now()) {
+  if (timerDeadline(board) === null) return 'Not started';
+  const seconds = Math.ceil(timerRemainingMs(board, now) / 1_000);
+  return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+}
+
 function loadState() {
   if (!fs.existsSync(STATE_FILE)) return newState();
   try {
@@ -208,6 +246,7 @@ function loadState() {
       residents: Boolean(loaded.board.ready?.residents),
       industrialists: Boolean(loaded.board.ready?.industrialists),
     };
+    loaded.board.timer = normalizeTimer(loaded.board.timer);
     loaded.history = validHistory(loaded.history) ? loaded.history : null;
     return loaded;
   } catch (error) {
@@ -295,7 +334,7 @@ function renderPlayerPanel(gameState, role, label, rotated) {
     </div>
     ${renderGrid(player, rotated)}
     <dl class="player-stats">
-      <div><dt>Budget</dt><dd>$${player.budget}</dd></div>
+      <div><dt>Wealth</dt><dd>$${player.budget}</dd></div>
       <div><dt>Active profit</dt><dd>+$${profitFor(player.grid)}</dd></div>
       <div><dt>Sediment this round</dt><dd>+${sedimentFor(player.grid)}</dd></div>
       <div><dt>Subsidence this round</dt><dd>+${subsidenceFor(player)}</dd></div>
@@ -330,7 +369,7 @@ function renderSnapshot(gameState, phase, capturedAt = new Date()) {
     .phase{display:inline-block;margin-left:8px;padding:4px 9px;border-radius:999px;background:#dbeafe;color:#1e3a8a;font-size:13px;vertical-align:middle}
     .flood{margin-top:14px;padding:15px 20px;border-radius:12px;font-size:18px;font-weight:800;text-align:center}
     .flood.occurred{background:#bfdbfe;color:#1e3a8a;border:2px solid #3b82f6}.flood.clear{background:#dcfce7;color:#166534;border:2px solid #4ade80}
-    .summary{margin-top:14px;padding:16px;display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:10px}
+    .summary{margin-top:14px;padding:16px;display:grid;grid-template-columns:repeat(7,minmax(110px,1fr));gap:10px}
     .stat{padding:12px;border-radius:10px;background:#f8fafc;border:1px solid #e2e8f0}.stat span{display:block;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase}.stat strong{display:block;margin-top:5px;font-size:21px}
     .boards{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;align-items:start}.player-panel{padding:18px;min-width:0}
     .player-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}.player-heading h2{font-size:21px}.ready{padding:5px 10px;border-radius:999px;font-size:13px;font-weight:800}.ready.yes{background:#dcfce7;color:#166534}.ready.no{background:#e2e8f0;color:#475569}
@@ -358,6 +397,7 @@ function renderSnapshot(gameState, phase, capturedAt = new Date()) {
     <div class="stat"><span>Government budget</span><strong>$${gameState.board.govBudget}</strong></div>
     <div class="stat"><span>Flood probability</span><strong>${Math.round(gameState.board.floodProb * 100)}%</strong></div>
     <div class="stat"><span>Dredges remaining</span><strong>${gameState.board.remainingDredges}</strong></div>
+    <div class="stat"><span>Round timer</span><strong>${timerDisplay(gameState.board, capturedAt.getTime())}</strong></div>
   </section>
   <div class="boards">
     ${renderPlayerPanel(gameState, Role.RESIDENTS, 'Residential Area', true)}
@@ -463,6 +503,50 @@ app.use(express.json({ limit: '64kb', strict: true }));
 let state = loadState();
 const claims = new Map();
 const requestBuckets = new Map();
+let roundTimerHandle = null;
+
+function expireRoundIfNeeded(now = Date.now()) {
+  const deadline = timerDeadline(state.board);
+  if (deadline === null || now < deadline) return false;
+  if (playerRoles.every((role) => state.board.ready[role])) return false;
+  state.board.ready = { residents: true, industrialists: true };
+  saveState(state);
+  return true;
+}
+
+function scheduleRoundExpiry() {
+  if (roundTimerHandle) clearTimeout(roundTimerHandle);
+  roundTimerHandle = null;
+  const deadline = timerDeadline(state.board);
+  if (deadline === null) return;
+  const delay = deadline - Date.now();
+  if (delay <= 0) {
+    expireRoundIfNeeded();
+    return;
+  }
+  roundTimerHandle = setTimeout(() => {
+    expireRoundIfNeeded();
+    roundTimerHandle = null;
+  }, delay);
+}
+
+function startRoundTimer(board, now = new Date()) {
+  board.timer = {
+    durationMs: ROUND_DURATION_MS,
+    startedAt: now.toISOString(),
+    deadline: new Date(now.getTime() + ROUND_DURATION_MS).toISOString(),
+  };
+}
+
+function editingUnavailable(board, now = Date.now()) {
+  const deadline = timerDeadline(board);
+  if (deadline === null) return { error: 'The Moderator has not started this round', code: 'ROUND_NOT_STARTED' };
+  if (now >= deadline) return { error: 'Time is up for this round', code: 'ROUND_ENDED' };
+  return null;
+}
+
+expireRoundIfNeeded();
+scheduleRoundExpiry();
 
 app.use((request, response, next) => {
   const now = Date.now();
@@ -495,6 +579,19 @@ function authenticateRole(role, request, response, next) {
 
 function requireRole(role) {
   return (request, response, next) => authenticateRole(role, request, response, next);
+}
+
+function rejectStaleRound(request, response) {
+  const value = request.get('x-game-round') || '';
+  if (!/^(0|[1-9]\d*)$/.test(value)) {
+    response.status(400).json({ error: 'A valid game round is required', code: 'INVALID_ROUND' });
+    return true;
+  }
+  if (Number(value) !== state.board.nextFlag) {
+    response.status(409).json({ error: 'This request belongs to an earlier round', code: 'ROUND_CHANGED' });
+    return true;
+  }
+  return false;
 }
 
 function renewController(request) {
@@ -535,6 +632,7 @@ app.post('/api/release', (request, response) => {
 });
 
 app.get('/api/board', (request, response) => {
+  expireRoundIfNeeded();
   renewController(request);
   response.set('Cache-Control', 'no-store');
   response.json(state.board);
@@ -542,12 +640,23 @@ app.get('/api/board', (request, response) => {
 
 for (const role of playerRoles) {
   app.get(`/api/${role}`, (request, response) => {
+    expireRoundIfNeeded();
     renewController(request);
     response.set('Cache-Control', 'no-store');
     response.json(state[role]);
   });
   app.post(`/api/${role}`, requireRole(role), (request, response) => {
     try {
+      expireRoundIfNeeded();
+      if (rejectStaleRound(request, response)) return;
+      const unavailable = editingUnavailable(state.board);
+      if (unavailable) return response.status(409).json(unavailable);
+      if (state.board.ready[role]) {
+        return response.status(409).json({
+          error: 'Your team is already ready for the next round',
+          code: 'TEAM_READY',
+        });
+      }
       state[role] = normalizePlayer(request.body, role);
       state.board.ready[role] = false;
       saveState(state);
@@ -557,20 +666,45 @@ for (const role of playerRoles) {
     }
   });
   app.post(`/api/${role}/ready`, requireRole(role), (request, response) => {
+    expireRoundIfNeeded();
+    if (rejectStaleRound(request, response)) return;
+    if (timerDeadline(state.board) === null) {
+      return response.status(409).json({ error: 'The Moderator has not started this round', code: 'ROUND_NOT_STARTED' });
+    }
     state.board.ready[role] = true;
     saveState(state);
-    response.json({ ready: state.board.ready });
+    return response.json({ ready: state.board.ready });
   });
 }
 
+app.post('/api/start-round', requireRole(Role.MODERATOR), (request, response, next) => {
+  expireRoundIfNeeded();
+  if (timerDeadline(state.board) !== null) {
+    return response.status(409).json({ error: 'This round has already started' });
+  }
+  try {
+    const nextState = { ...state, board: { ...state.board } };
+    startRoundTimer(nextState.board);
+    writeSnapshot(nextState, 'start');
+    saveState(nextState);
+    state = nextState;
+    scheduleRoundExpiry();
+    return response.json(state.board);
+  } catch (error) {
+    return next(error);
+  }
+});
+
 app.post('/api/reset', requireRole(Role.MODERATOR), (request, response, next) => {
   try {
+    expireRoundIfNeeded();
     if (state.history) writeSnapshot(state, 'end');
     const nextState = newState(state.board.resetFlag + 1);
     nextState.history = createHistorySession();
     writeSnapshot(nextState, 'start');
     saveState(nextState);
     state = nextState;
+    scheduleRoundExpiry();
     return response.json(state.board);
   } catch (error) {
     return next(error);
@@ -578,6 +712,10 @@ app.post('/api/reset', requireRole(Role.MODERATOR), (request, response, next) =>
 });
 
 app.post('/api/advance', requireRole(Role.MODERATOR), (request, response, next) => {
+  expireRoundIfNeeded();
+  if (timerDeadline(state.board) === null) {
+    return response.status(409).json({ error: 'Start the first round before advancing' });
+  }
   if (!playerRoles.every((role) => state.board.ready[role])) {
     return response.status(409).json({ error: 'Both teams must be ready before advancing the round' });
   }
@@ -600,12 +738,15 @@ app.post('/api/advance', requireRole(Role.MODERATOR), (request, response, next) 
         floodProb: flood.probability,
         remainingDredges: 1,
         ready: { residents: false, industrialists: false },
+        timer: { durationMs: ROUND_DURATION_MS, startedAt: null, deadline: null },
       },
     };
+    startRoundTimer(nextState.board);
     writeSnapshot(state, 'end');
     writeSnapshot(nextState, 'start');
     saveState(nextState);
     state = nextState;
+    scheduleRoundExpiry();
     return response.json(state.board);
   } catch (error) {
     return next(error);
