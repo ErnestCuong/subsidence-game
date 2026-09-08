@@ -75,7 +75,7 @@ Do not run `docker compose down --volumes` unless the saved game should be perma
 
 - Same-origin browser/API traffic; there is no hard-coded cloud backend.
 - Role access codes are required for all state-changing requests.
-- One active controlling browser is allowed per role; leases expire after 45 seconds without traffic.
+- One active controlling browser is allowed per role; leases expire after 45 seconds without traffic. A Moderator who has the correct access code can explicitly transfer control from an old device, while team roles cannot be taken over.
 - The two teams must explicitly mark themselves ready before a round can advance.
 - Round transitions, resets, and dredging are server-authoritative and atomic.
 - State writes use an atomic file replacement in a persistent Docker volume.

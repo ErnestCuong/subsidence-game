@@ -45,6 +45,7 @@ const Board = () => {
   const [accessCode, setAccessCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [apiError, setApiError] = useState('')
+  const [canTakeOverModerator, setCanTakeOverModerator] = useState(false)
 
   const fetchBoard = useCallback(async () => {
     const data = await getGameState('board')
@@ -75,16 +76,18 @@ const Board = () => {
     return () => window.clearInterval(interval)
   }, [fetchBoard, player])
 
-  const joinGame = async (event) => {
-    event.preventDefault()
+  const joinGame = async (event, takeover = false) => {
+    if (event) event.preventDefault()
     if (!accessCode.trim()) return
     setBusy(true)
     try {
-      await authenticate(pendingRole, accessCode.trim())
+      await authenticate(pendingRole, accessCode.trim(), takeover)
       setPlayer(pendingRole)
       setAccessCode('')
+      setCanTakeOverModerator(false)
       toast.success(`Joined as ${roleLabels[pendingRole]}`)
     } catch (error) {
+      setCanTakeOverModerator(pendingRole === PlayerType.MODERATOR && error.canTakeOver)
       toast.error(error.message)
     } finally {
       setBusy(false)
@@ -108,7 +111,12 @@ const Board = () => {
     try {
       const updatedBoard = await action()
       setBoard(updatedBoard)
-      if (successMessage) toast.success(successMessage(updatedBoard))
+      if (successMessage) {
+        const notification = successMessage(updatedBoard)
+        if (typeof notification === 'string') toast.success(notification)
+        else if (notification.type === 'error') toast.error(notification.message)
+        else toast.success(notification.message)
+      }
     } catch (error) {
       toast.error(error.message)
     } finally {
@@ -140,7 +148,10 @@ const Board = () => {
               <button
                 key={role}
                 type="button"
-                onClick={() => setPendingRole(role)}
+                onClick={() => {
+                  setPendingRole(role)
+                  setCanTakeOverModerator(false)
+                }}
                 className={`rounded-md border px-3 py-2 font-semibold ${pendingRole === role ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-slate-300'}`}
               >
                 {roleLabels[role]}
@@ -153,13 +164,29 @@ const Board = () => {
             type="password"
             autoComplete="current-password"
             value={accessCode}
-            onChange={(event) => setAccessCode(event.target.value)}
+            onChange={(event) => {
+              setAccessCode(event.target.value)
+              setCanTakeOverModerator(false)
+            }}
             className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
           />
           {apiError && <p className="mt-3 text-sm text-red-700">Server: {apiError}</p>}
           <button type="submit" disabled={busy || !accessCode.trim()} className="btn mt-6 w-full bg-green-300">
             {busy ? 'Joining…' : `Join as ${roleLabels[pendingRole]}`}
           </button>
+          {canTakeOverModerator && (
+            <div className="mt-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-left">
+              <p className="text-sm text-amber-900">Another device controls the Moderator role.</p>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={(event) => joinGame(event, true)}
+                className="btn mt-3 w-full bg-amber-300"
+              >
+                {busy ? 'Taking over…' : 'Take over Moderator'}
+              </button>
+            </div>
+          )}
           <Toaster position="bottom-center" />
         </form>
       </main>
@@ -205,7 +232,9 @@ const Board = () => {
               <button
                 className="btn w-full bg-green-300"
                 disabled={busy || !teamsReady}
-                onClick={() => runModeratorAction(advanceRound, (data) => data.flood.level > 0 ? `Flood level ${data.flood.level}` : 'No flood')}
+                onClick={() => runModeratorAction(advanceRound, (data) => data.flood.level > 0
+                  ? { type: 'error', message: `Flood level ${data.flood.level}` }
+                  : { type: 'success', message: 'No flood' })}
               >
                 {teamsReady ? 'Next round' : 'Waiting for teams'}
               </button>

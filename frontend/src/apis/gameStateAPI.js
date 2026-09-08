@@ -28,7 +28,13 @@ async function request(url, options = {}) {
   try {
     const response = await fetch(url, { ...options, headers, cache: 'no-store' })
     const body = response.status === 204 ? null : await response.json().catch(() => null)
-    if (!response.ok) throw new Error(body?.error || `Request failed (${response.status})`)
+    if (!response.ok) {
+      const error = new Error(body?.error || `Request failed (${response.status})`)
+      error.status = response.status
+      error.code = body?.code
+      error.canTakeOver = Boolean(body?.canTakeOver)
+      throw error
+    }
     emitStatus(true)
     return body
   } catch (error) {
@@ -37,12 +43,12 @@ async function request(url, options = {}) {
   }
 }
 
-async function authenticate(role, token) {
+async function authenticate(role, token, takeover = false) {
   const clientId = session.clientId || makeClientId()
   const result = await request('/api/auth', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ role, token, clientId }),
+    body: JSON.stringify({ role, token, clientId, takeover }),
   })
   session = { role, token, clientId }
   window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(session))

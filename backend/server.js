@@ -476,9 +476,9 @@ app.use((request, response, next) => {
   return bucket.count > REQUEST_LIMIT ? response.status(429).json({ error: 'Too many requests' }) : next();
 });
 
-function claimRole(role, clientId) {
+function claimRole(role, clientId, allowTakeover = false) {
   const claim = claims.get(role);
-  if (claim && claim.clientId !== clientId && claim.expiresAt > Date.now()) return false;
+  if (claim && claim.clientId !== clientId && claim.expiresAt > Date.now() && !allowTakeover) return false;
   claims.set(role, { clientId, expiresAt: Date.now() + LEASE_MS });
   return true;
 }
@@ -512,10 +512,17 @@ function renewController(request) {
 app.get('/healthz', (request, response) => response.json({ status: 'ok' }));
 
 app.post('/api/auth', (request, response) => {
-  const { role, token, clientId } = request.body || {};
+  const { role, token, clientId, takeover } = request.body || {};
   if (!roles.includes(role) || !tokensEqual(token, tokens[role])) return response.status(401).json({ error: 'Invalid role access code' });
   if (!validClientId(clientId)) return response.status(400).json({ error: 'Invalid client identifier' });
-  if (!claimRole(role, clientId)) return response.status(409).json({ error: 'This role is controlled by another device' });
+  const allowTakeover = role === Role.MODERATOR && takeover === true;
+  if (!claimRole(role, clientId, allowTakeover)) {
+    return response.status(409).json({
+      error: 'This role is controlled by another device',
+      code: 'ROLE_CONTROLLED',
+      canTakeOver: role === Role.MODERATOR,
+    });
+  }
   return response.json({ role, leaseMs: LEASE_MS });
 });
 
